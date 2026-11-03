@@ -51,7 +51,16 @@ class WorkerService(Node):
                         gripper_action='', gripper_open=0.04, gripper_closed=0.0,
                         gripper_max_effort=5.0, velocity_scale=0.05,
                         acceleration_scale=0.05, action_timeout=30.0,
-                        grasp_check_service='', stop_file='')
+                        grasp_check_service='', stop_file='', robot_backend='moveit',
+                        movel_topic='/l_goal_move',
+                        gripper_trajectory_topic='/leader/joint_trajectory_command_broadcaster_left/raw_joint_trajectory',
+                        joint_states_topic='/joint_states', gripper_joint='gripper_l_joint1',
+                        controller_frame='base_link',
+                        controller_node='/ai_worker_movel_controller',
+                        move_duration=3.0, cartesian_speed=.05, feedback_timeout=.5,
+                        position_tolerance=.008, orientation_tolerance=.08,
+                        gripper_duration=1.0, gripper_tolerance=.03,
+                        gripper_joint_min=0.0, gripper_joint_max=.8)
         for key, value in defaults.items():
             self.declare_parameter(key, value)
         self.cfg = {key: self.get_parameter(key).value for key in defaults}
@@ -186,8 +195,8 @@ class WorkerService(Node):
             if cfg['dry_run']:
                 robot = DelayedDryRobot(self.get_logger().info, cfg['dry_step_delay'], check, task.cancel)
             else:
-                from .robot_interface import MoveItRobot
-                robot = live_robot = MoveItRobot(self, cfg, check)
+                from .robot_factory import make_robot
+                robot = live_robot = make_robot(self, cfg, check)
             self.robot = robot
             pick_and_place(robot, target, Point(*settings['bin_position']), Point(*cfg['home_position']),
                            cfg['workspace'], cfg['clearance'], settings['grasp_offset'], check, report)

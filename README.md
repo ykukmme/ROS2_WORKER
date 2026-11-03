@@ -4,8 +4,10 @@ ROBOTIS AI WORKER용 ROS2 물건 분류 프로토타입.
 YOLO가 구분한 두 종류를 색 테이프 구역에 자동 배정하고 같은 종류를 같은 구역에 놓도록 구성한다.
 VLA/VLM은 사용하지 않는다.
 
-**현재 검증 범위는 모의 제어다. 실제 AI WORKER의 카메라 보정·팔 동작은 현장 연결이 필요하다.**
-기본값은 `dry_run: true`, `mock_mode: false`이며 클론·빌드만으로 팔이 움직이지 않는다.
+**실물 실행 경로는 [LIVE_ROBOT.md](ai_worker_sorting/LIVE_ROBOT.md)를 따른다.**
+실제 RGB-D·YOLO·ROBOTIS MoveL·그리퍼 피드백을 연결하는 실행 코드를 포함한다.
+실물 장비 접속 없이 컨트롤러 에뮬레이터로 검증했으므로 카메라 보정과 동작은 현장에서 확인해야 한다.
+일반 데모는 `dry_run: true`이며, 실물 launch는 별도 측정 설정을 요구한다.
 
 | 디렉터리 | 내용 |
 |---|---|
@@ -47,6 +49,7 @@ ros2 service call /worker/start_task ai_worker_interfaces/srv/StartTask "{sessio
 ## 문서
 
 - [로봇 설치·업데이트](DEPLOYMENT.md)
+- [실제 AI WORKER 실행](ai_worker_sorting/LIVE_ROBOT.md)
 - [자동 색 구역 분류](ai_worker_sorting/AUTO_SORT.md)
 - [작업 서비스](ai_worker_sorting/WORKER_SERVICES.md)
 - [Windows 웹캠 → Docker ROS2](ai_worker_sorting/LAPTOP_ROS2.md)
@@ -57,12 +60,13 @@ ros2 service call /worker/start_task ai_worker_interfaces/srv/StartTask "{sessio
 
 ## 검증
 
-- Windows/Python 3.11 단위 테스트 39개.
+- Docker ROS2 Humble/Python 3.10 단위 테스트 43개.
 - Docker ROS2 Humble/Python 3.10에서 패키지 2개 빌드와 서비스 통합 시나리오 18개.
 - 실제 노트북 웹캠 → ROS2 → YOLO 영상 연결 검증.
+- 공식 MoveL·그리퍼 메시지로 실물 실행 코드 경로 8개 시나리오 검증(제어기 에뮬레이터).
 - 실제 로봇 장비에서의 ROS2 배포판·센서·컨트롤러 호환성은 아직 미검증.
 
-단위 테스트에는 NumPy와 OpenCV가 필요하다.
+단위 테스트에는 NumPy, OpenCV, PyYAML이 필요하다.
 
 ```bash
 cd ai_worker_sorting

@@ -1,5 +1,7 @@
 # 두 종류 자동 구역 분류
 
+실제 장비의 RGB-D·YOLO·ROBOTIS MoveL 연결은 [LIVE_ROBOT.md](LIVE_ROBOT.md)를 따른다.
+
 사용자가 물건 종류·목적지를 입력하지 않아도 다음을 수행한다.
 
 1. 서로 다른 두 색의 닫힌 테이프 사각형 검출.

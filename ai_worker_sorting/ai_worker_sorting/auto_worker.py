@@ -8,6 +8,8 @@ from pathlib import Path
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.time import Time
+from tf2_ros import Buffer, TransformListener
 from ai_worker_interfaces.msg import SortRule
 from ai_worker_interfaces.srv import DetectObjects, ScanZones, PrepareAutoSort, StartTask, SessionStatus
 
@@ -22,7 +24,10 @@ class AutoWorker(WorkerService):
         super().__init__(parameter_overrides)
         defaults = dict(object_size=.06, slot_margin=.01, place_offset=.05,
                         auto_grasp_offset=0.0, shared_grasp_verified=False,
-                        source_roi=[0.,0.,640.,360.], empty_scans=3, scan_interval=.25)
+                        source_roi=[0.,0.,640.,360.], empty_scans=3, scan_interval=.25,
+                        home_mode='configured', placement_height_mode='fixed',
+                        min_object_height=.01, max_object_height=.25, transport_above_objects=False,
+                        tool_below_tcp=0.)
         for key, value in defaults.items():
             self.declare_parameter(key, value)
             self.cfg[key] = self.get_parameter(key).value
@@ -32,6 +37,8 @@ class AutoWorker(WorkerService):
         if self.cfg['empty_scans'] < 2 or not .05 <= self.cfg['scan_interval'] <= 5:
             raise ValueError('Invalid scan settings')
         self.auto_lock = threading.RLock()
+        self.robot_tf = Buffer()
+        self.robot_tf_listener = TransformListener(self.robot_tf,self)
         self.preparing = False
         self.session = None  # One current session; preparing replaces only unused sessions.
         group = ReentrantCallbackGroup()
@@ -214,12 +221,38 @@ class AutoWorker(WorkerService):
             time.sleep(.05)
         raise ValueError('PLACEMENT_UNVERIFIED: destination presence/source removal not confirmed')
 
+    def verify_grasp_observation(self,obj,source,check):
+        after = self.get_clock().now().nanoseconds
+        limit = time.monotonic()+self.cfg['service_timeout']
+        while time.monotonic()<limit:
+            snapshot = self.call(self.all_vision,DetectObjects.Request(target_class=''),check)
+            stamp = snapshot.header.stamp.sec*1_000_000_000+snapshot.header.stamp.nanosec
+            if stamp>after:
+                tf = self.robot_tf.lookup_transform(self.cfg['base_frame'],self.cfg['tool_link'],Time())
+                tf_stamp = tf.header.stamp.sec*1_000_000_000+tf.header.stamp.nanosec
+                if not 0<=(self.get_clock().now().nanoseconds-tf_stamp)/1e9<=self.cfg['feedback_timeout']:
+                    raise ValueError('TCP feedback is stale during grasp verification')
+                t = tf.transform.translation
+                points = [p for _,p in self.measured_points(snapshot.objects,obj.class_name)]
+                source_present = any(math.dist((p.x,p.y,p.z),(source.x,source.y,source.z))
+                                     <=self.cfg['object_size']/2 for p in points)
+                for point in points:
+                    lifted = point.z-source.z >= self.cfg['clearance']*.5
+                    near_tcp = math.dist((point.x,point.y,point.z),(t.x,t.y,t.z))<=.12
+                    same_column = math.hypot(point.x-source.x,point.y-source.y)<=self.cfg['object_size']/2
+                    if lifted and near_tcp and same_column and not source_present:
+                        return
+            check()
+            time.sleep(.05)
+        raise ValueError('GRASP_UNVERIFIED: no fresh lifted object near the TCP')
+
     def run_auto(self, task, session, max_objects):
         deadline = time.monotonic()+self.cfg['task_timeout']
         check = lambda: self.check(task, deadline)
         outcome, message, reserved = 'FAILED', 'Task did not finish', None
         live_robot = None
         completed, empty, last_stamp, after_stamp = 0, 0, 0, 0
+        home = Point(*self.cfg['home_position'])
         try:
             def report(stage):
                 self.store.stage(task, 'ITEM_DONE' if stage == 'DONE' else stage)
@@ -251,6 +284,16 @@ class AutoWorker(WorkerService):
                 target = self.select_target([obj], obj.class_name)
                 with self.auto_lock:
                     reserved = session.reserve(obj.class_name)
+                    if self.cfg['placement_height_mode']=='object_surface':
+                        zone = next(z for z in session.zones if z.zone_id==session.mapping[obj.class_name])
+                        table_z = sum(p.z for p in zone.boundary.polygon.points)/4
+                        height = target.z-table_z
+                        if not self.cfg['min_object_height']<=height<=self.cfg['max_object_height']:
+                            raise ValueError('Object surface height is inconsistent with the table')
+                        release_z = table_z+height+self.cfg['auto_grasp_offset']
+                        if release_z-self.cfg['tool_below_tcp']<=table_z+.005:
+                            raise ValueError('TCP grasp offset would enter the tabletop')
+                        reserved.position = Point(reserved.position.x,reserved.position.y,release_z)
                 check()
                 if self.cfg['dry_run']:
                     robot = DelayedDryRobot(self.get_logger().info, self.cfg['dry_step_delay'], check, task.cancel)
@@ -260,11 +303,25 @@ class AutoWorker(WorkerService):
                            for _,p in self.measured_points(snapshot.objects)):
                         raise ValueError('UNEXPECTED_OCCUPANCY: reserved slot is not clear')
                     if live_robot is None:
-                        from .robot_interface import MoveItRobot
-                        live_robot = MoveItRobot(self, self.cfg, check)
+                        from .robot_factory import make_robot
+                        live_robot = make_robot(self,self.cfg,check,
+                            lambda:self.verify_grasp_observation(obj,target,check))
+                        if self.cfg['home_mode']=='current_tcp':
+                            if not hasattr(live_robot,'capture_home'):
+                                raise ValueError('current_tcp home requires a feedback-capable robot backend')
+                            home = live_robot.capture_home()
+                    # The callback must follow the current object, not the first one.
+                    live_robot.verifier = lambda:self.verify_grasp_observation(obj,target,check)
                     robot = live_robot
-                pick_and_place(robot, target, reserved.position, Point(*self.cfg['home_position']),
-                               self.cfg['workspace'], self.cfg['clearance'], self.cfg['auto_grasp_offset'], check, report)
+                transport_z = None
+                if self.cfg['transport_above_objects']:
+                    transport_z = max(p.z for z in session.zones for p in z.boundary.polygon.points)
+                    transport_z += self.cfg['max_object_height']+self.cfg['clearance']
+                    held_height = height if self.cfg['placement_height_mode']=='object_surface' else self.cfg['max_object_height']
+                    transport_z += max(self.cfg['tool_below_tcp'],held_height+self.cfg['auto_grasp_offset'],0.)
+                pick_and_place(robot, target, reserved.position, home,
+                               self.cfg['workspace'], self.cfg['clearance'], self.cfg['auto_grasp_offset'], check, report,
+                               transport_z=transport_z)
                 if live_robot is not None:
                     report('VERIFY_PLACEMENT')
                     self.verify_placement(obj,reserved,target,check)

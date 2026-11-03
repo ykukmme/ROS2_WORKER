@@ -3,6 +3,8 @@
 ROS2 + YOLO로 고정 테이블 위 물건 하나를 찾아 한쪽 팔로 바구니에 놓는다.
 기본값은 `dry_run: true`. 모의 모드에서는 팔·그리퍼 액션 클라이언트를 만들지 않는다.
 
+실제 AI WORKER용 RGB-D·YOLO·MoveL 실행은 [LIVE_ROBOT.md](LIVE_ROBOT.md)를 따른다.
+
 **두 종류를 자동으로 색 구역에 배정하는 기능은 [AUTO_SORT.md](AUTO_SORT.md)를 참고한다.**
 물건 종류를 입력하지 않고 준비·시작 서비스를 호출한다. 현재 검증은 모의 실행이다.
 

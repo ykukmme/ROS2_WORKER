@@ -55,6 +55,16 @@ class RecordingRobot(DryRobot):
 
 
 class TaskTests(unittest.TestCase):
+    def test_live_transport_raises_before_crossing_the_table(self):
+        robot = RecordingRobot()
+        pick_and_place(robot,Point(.2,0,.15),Point(.5,.2,.15),Point(.3,0,.4),
+                       [.1,.7,-.4,.4,.05,.8],.1,-.02,lambda:None,lambda _:None,transport_z=.5)
+        self.assertEqual(robot.events[1],('move',Point(.3,0,.5)))
+        self.assertEqual(robot.events[2],('move',Point(.2,0,.5)))
+        self.assertIn(('move',Point(.5,.2,.5)),robot.events)
+        self.assertEqual(robot.events[-2],('move',Point(.3,0,.5)))
+        self.assertEqual(robot.events[-1],('move',Point(.3,0,.4)))
+
     def run_cycle(self, robot, target=None, check=lambda: None, limits=None):
         states = []
         pick_and_place(robot, target or Point(0.4, 0.1, 0.2),

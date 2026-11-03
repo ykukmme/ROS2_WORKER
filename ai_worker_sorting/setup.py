@@ -23,5 +23,8 @@ setup(
         'vision_service = ai_worker_sorting.vision_service:main',
         'zone_service = ai_worker_sorting.zone_service:main',
         'auto_worker = ai_worker_sorting.auto_worker:main',
+        'rgbd_input = ai_worker_sorting.rgbd_input:main',
+        'rgbd_detector = ai_worker_sorting.rgbd_detector:main',
+        'configure_live = ai_worker_sorting.configure_live:main',
     ]},
 )

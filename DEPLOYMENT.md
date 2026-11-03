@@ -1,5 +1,8 @@
 # Git 배포와 AI WORKER 설치
 
+실물 제어를 실행하려면 [LIVE_ROBOT.md](ai_worker_sorting/LIVE_ROBOT.md)를 따른다.
+이 문서의 기본 launch는 서버/모의 검증용이며, 실물용 launch는 RGB-D·YOLO·제어 연결을 함께 시작한다.
+
 Git에는 두 ROS2 패키지의 소스·인터페이스·설정 예제만 배포한다.
 로봇의 기존 구동 소프트웨어, 보정 파일, 드라이버, 모델 가중치는 별도로 유지한다.
 

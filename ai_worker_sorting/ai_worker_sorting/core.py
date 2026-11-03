@@ -44,18 +44,27 @@ def pixel_on_plane(u, v, fx, fy, cx, cy, origin, rotation, plane_z):
 
 
 def pick_and_place(robot, target, bin_point, home, limits, clearance,
-                   grasp_offset, check, report):
+                   grasp_offset, check, report, transport_z=None):
     """Stop at the first failure. Never auto-open/recover after an error."""
     if not finite([clearance, grasp_offset]) or clearance <= 0:
         raise ValueError('Invalid clearance or grasp offset')
     grasp = target.above(grasp_offset)
     approach = grasp.above(clearance)
     bin_above = bin_point.above(clearance)
+    raise_from_home = None
+    if transport_z is not None:
+        if not finite([transport_z]) or transport_z<max(grasp.z,bin_point.z):
+            raise ValueError('Transport height must clear grasp and placement endpoints')
+        approach = Point(grasp.x,grasp.y,max(approach.z,transport_z))
+        bin_above = Point(bin_point.x,bin_point.y,max(bin_above.z,transport_z))
+        raise_from_home = Point(home.x,home.y,max(home.z,transport_z))
     # Validate ALL endpoints before sending even the first command.
-    if not all(in_workspace(p, limits) for p in (grasp, approach, bin_point, bin_above, home)):
+    endpoints = [grasp,approach,bin_point,bin_above,home]+([raise_from_home] if raise_from_home else [])
+    if not all(in_workspace(p, limits) for p in endpoints):
         raise ValueError('Target, bin, home or approach outside workspace')
     steps = [
         ('OPEN', lambda: robot.gripper(True)),
+        *([('RAISE_CLEAR',lambda:robot.raise_clear(raise_from_home) if hasattr(robot,'raise_clear') else robot.move(raise_from_home))] if raise_from_home else []),
         ('APPROACH', lambda: robot.move(approach)),
         ('DESCEND', lambda: robot.move(grasp)),
         ('CLOSE', lambda: robot.gripper(False)),
@@ -65,7 +74,8 @@ def pick_and_place(robot, target, bin_point, home, limits, clearance,
         ('LOWER_TO_BIN', lambda: robot.move(bin_point)),
         ('RELEASE', lambda: robot.gripper(True)),
         ('RETREAT', lambda: robot.move(bin_above)),
-        ('HOME', lambda: robot.move(home)),
+        *([('RETURN_CLEAR',lambda:robot.move(raise_from_home))] if raise_from_home else []),
+        ('HOME', lambda: robot.return_home(home) if hasattr(robot,'return_home') else robot.move(home)),
     ]
     for state, action in steps:
         check()

@@ -14,11 +14,14 @@ from std_srvs.srv import Trigger
 
 
 class MoveItRobot:
-    def __init__(self, node, cfg, check):
+    def __init__(self, node, cfg, check, grasp_verifier=None):
         self.node, self.cfg, self.check = node, cfg, check
-        for key in ('planning_group', 'tool_link', 'gripper_action', 'grasp_check_service'):
+        for key in ('planning_group', 'tool_link', 'gripper_action'):
             if not cfg[key]:
                 raise ValueError(f'Live mode requires {key}')
+        if grasp_verifier is None and not cfg['grasp_check_service']:
+            raise ValueError('Measured grasp verification is required')
+        self.verifier = grasp_verifier
         if not cfg['hardware_configured']:
             raise ValueError('Live mode requires hardware_configured: true')
         q = cfg['tool_quaternion']
@@ -35,7 +38,7 @@ class MoveItRobot:
             raise ValueError('gripper_max_effort must be positive')
         self.move_client = ActionClient(node, MoveGroup, cfg['move_action'])
         self.grip_client = ActionClient(node, GripperCommand, cfg['gripper_action'])
-        self.verify_client = node.create_client(Trigger, cfg['grasp_check_service'])
+        self.verify_client = node.create_client(Trigger, cfg['grasp_check_service']) if grasp_verifier is None else None
         self._handles = []
         self._lock = threading.Lock()
         self._failed_action = False
@@ -149,6 +152,9 @@ class MoveItRobot:
 
     def verify_grasp(self):
         self.check()
+        if getattr(self,'verifier',None):
+            self.verifier()
+            return
         if not self.verify_client.wait_for_service(timeout_sec=2.0):
             raise RuntimeError('Grasp verification service unavailable')
         result = self.wait(self.verify_client.call_async(Trigger.Request()))
@@ -169,4 +175,5 @@ class MoveItRobot:
             return
         self.move_client.destroy()
         self.grip_client.destroy()
-        self.node.destroy_client(self.verify_client)
+        if self.verify_client:
+            self.node.destroy_client(self.verify_client)
