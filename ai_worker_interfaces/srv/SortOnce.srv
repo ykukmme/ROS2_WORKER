@@ -1,0 +1,5 @@
+string target_class
+---
+bool accepted
+string task_id
+string message

@@ -1,0 +1,5 @@
+string task_id
+---
+# Acceptance does not mean the controller has stopped.
+bool accepted
+string message

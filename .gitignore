@@ -1,0 +1,38 @@
+# Local assistant/editor state
+.agents/
+.claude/
+.codex/
+.playwright-cli/
+skills-lock.json
+.vscode/
+.idea/
+
+# Credentials, local calibration and captured media
+.env
+.env.*
+!.env.example
+**/.runtime/
+**/results/
+**/models/
+*.local.yaml
+*.local.yml
+*.pt
+*.onnx
+*.engine
+*.bag
+*.db3
+*.mcap
+
+# Generated files
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+install/
+log/
+dist/
+.pytest_cache/
+.ruff_cache/
+*.log

@@ -1,0 +1,41 @@
+perception:
+  ros__parameters:
+    # All topic/frame names are EXAMPLES: replace after robot inspection.
+    image_topic: /central_camera/image_rect
+    camera_info_topic: /central_camera/camera_info
+    base_frame: base_link
+    weights: ""  # Absolute path to your trained YOLO weights. Never auto-download.
+    target_class: box
+    confidence: 0.80
+    device: cpu
+    calibrated: false
+    # Known flat TOP surface of an upright object in base_frame, metres.
+    object_top_z: 0.15
+    max_image_age: 1.0
+
+task_manager:
+  ros__parameters:
+    dry_run: true
+    hardware_configured: false
+    base_frame: base_link
+    target_max_age: 1.0
+    workspace: [0.10, 0.70, -0.40, 0.40, 0.05, 0.70]
+    bin_position: [0.35, -0.20, 0.20]
+    home_position: [0.30, 0.0, 0.40]
+    clearance: 0.10
+    # Offset from perceived surface to target TCP; must be measured.
+    grasp_offset: 0.0
+    # EXAMPLE orientation only. Match your actual TCP and grasp geometry.
+    tool_quaternion: [1.0, 0.0, 0.0, 0.0]
+    planning_group: ""
+    tool_link: ""
+    move_action: /move_action
+    gripper_action: ""
+    gripper_open: 0.04
+    gripper_closed: 0.0
+    gripper_max_effort: 5.0
+    velocity_scale: 0.05
+    acceleration_scale: 0.05
+    action_timeout: 30.0
+    # Required in live mode: external Trigger service checking actual grasp.
+    grasp_check_service: ""

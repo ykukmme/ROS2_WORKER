@@ -1,0 +1,5 @@
+---
+bool success
+string workspace_id
+ai_worker_interfaces/PlacementZone[] zones
+string message

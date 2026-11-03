@@ -1,0 +1,7 @@
+string task_id
+---
+bool found
+# QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELED
+string state
+string stage
+string message

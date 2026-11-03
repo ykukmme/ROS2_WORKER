@@ -1,0 +1,6 @@
+---
+bool success
+string session_id
+string workspace_id
+ai_worker_interfaces/SortRule[] rules
+string message

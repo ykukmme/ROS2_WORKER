@@ -1,0 +1,13 @@
+laptop_camera_bridge:
+  ros__parameters:
+    bridge_url: http://host.docker.internal:8765
+    token_file: /tmp/worker_sorting_bridge/token
+    stop_file: /tmp/worker_sorting_bridge/ros.stop
+    fps: 10.0
+    max_frame_age: 2.0
+laptop_yolo_detector:
+  ros__parameters:
+    weights: /tmp/worker_sorting_assets/yolo26n.pt
+    confidence: 0.5
+    imgsz: 416
+    device: cpu

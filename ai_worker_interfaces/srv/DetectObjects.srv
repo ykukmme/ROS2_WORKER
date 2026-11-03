@@ -1,0 +1,6 @@
+string target_class
+---
+bool success
+std_msgs/Header header
+ai_worker_interfaces/DetectedObject[] objects
+string message

@@ -1,0 +1,8 @@
+string session_id
+---
+bool found
+string workspace_id
+ai_worker_interfaces/SortRule[] rules
+uint32 placed_count
+string slots_json
+string message
