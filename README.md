@@ -5,6 +5,7 @@ YOLO가 구분한 두 종류를 색 테이프 구역에 자동 배정하고 같�
 VLA/VLM은 사용하지 않는다.
 
 **연결 PC에서 Git으로 설치·실행하려면 [DEPLOYMENT.md](DEPLOYMENT.md)를 따른다.**
+공개 저장소이므로 Ubuntu에서 GitHub 로그인·토큰·SSH 키 없이 내려받고 업데이트할 수 있다.
 실제 RGB-D·YOLO·ROBOTIS MoveL·그리퍼 피드백을 연결하는 실행 코드를 포함한다.
 실물 장비 접속 없이 컨트롤러 에뮬레이터로 검증했으므로 카메라 보정과 동작은 현장에서 확인해야 한다.
 일반 데모는 `dry_run: true`이며, 실물 launch는 별도 측정 설정을 요구한다.
@@ -21,7 +22,7 @@ VLA/VLM은 사용하지 않는다.
 Windows PC라면 로봇의 기존 Linux 개발 컨테이너에 SSH 접속해 같은 절차를 실행할 수도 있다.
 
 ```bash
-git clone --branch codex/initial-release https://github.com/ykukmme/ROS2_WORKER.git
+GIT_TERMINAL_PROMPT=0 git -c credential.helper= clone --branch codex/initial-release https://github.com/ykukmme/ROS2_WORKER.git
 cd ROS2_WORKER
 # 로봇에서 사용하는 ROS2 환경을 먼저 source한 상태여야 한다.
 bash scripts/worker.sh check

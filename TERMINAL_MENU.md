@@ -1,11 +1,11 @@
 # Ubuntu 터미널 메뉴
 
 AI WORKER에서 공식 로봇 구동·MoveL 제어기·카메라를 실행하고, 연결 PC에서 같은 ROS2 환경을 source한다.
-최초 설치와 연결 조건은 [DEPLOYMENT.md](DEPLOYMENT.md)의 1~3단계를 따른다.
+GitHub 로그인 없이 진행하는 최초 설치·연결 절차는 [DEPLOYMENT.md](DEPLOYMENT.md)를 따른다.
 
 ```bash
-cd ROS2_WORKER
-git pull --ff-only origin codex/initial-release
+cd "$HOME/ROS2_WORKER"
+GIT_TERMINAL_PROMPT=0 git -c credential.helper= pull --ff-only origin codex/initial-release
 bash scripts/worker.sh build
 bash scripts/worker.sh menu
 ```
@@ -39,7 +39,7 @@ AI WORKER 분류 — 설정: 있음/없음
 자세 조작 자체는 기존 조그 기능으로 수행한다. 초기 설정 중 팔·그리퍼 명령은 발행하지 않는다.
 작업물·테이블·카메라는 교시 중 움직이지 않는다. 설정은 기본 `~/ros2_worker_config/live.local.yaml`에 저장한다.
 다른 경로는 `WORKER_CONFIG`로 지정한다. 커스텀 토픽·좌표계는 기존 로컬 설정에서 이어받는다.
-처음부터 커스텀 연결을 사용하는 장비는 [고급 설정](DEPLOYMENT.md#4-현장-설정-생성)으로 설정 파일을 먼저 만든다.
+처음부터 커스텀 연결을 사용하는 장비는 [고급 설정](ADVANCED_SETUP.md#4-현장-설정-생성)으로 설정 파일을 먼저 만든다.
 
 ## 평소 사용할 때
 
