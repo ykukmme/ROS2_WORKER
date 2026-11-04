@@ -139,14 +139,19 @@ bash scripts/worker.sh teach tool --state "$STATE" --tips-at-table
 
 같은 방향을 유지하며 첫 종류의 물건을 실제로 집을 위치로 조그한다.
 테이블과 닿지 않고 물건을 잡을 수 있는 자세인지 확인한 뒤 기록한다.
-두 번째 종류도 반복한다. 아래 이름은 `scan`에서 반환된 실제 이름으로 바꾼다.
+두 번째 종류도 반복한다. 물건은 특정 품목으로 제한하지 않고 첫 번째 종류·두 번째 종류로 안내한다.
+현재 CLI의 아래 이름에는 `scan`에서 반환된 실제 인식 이름을 사용한다.
 
 ```bash
 bash scripts/worker.sh teach grasp --state "$STATE" --class-name '첫_종류' --grasp-pose-confirmed
 bash scripts/worker.sh teach grasp --state "$STATE" --class-name '둘째_종류' --grasp-pose-confirmed
-# 두 종류 기록 후 팔을 준비 위치로 올린다. 집기 방향은 그대로 유지한다.
+# 두 종류 기록 후 팔을 작업물에서 떨어뜨린다. 집기 방향은 그대로 유지한다.
 bash scripts/worker.sh teach write --state "$STATE" --output "$WORKER_CONFIG"
 ```
+
+시작 안내는 **“팔을 작업물에서 떨어뜨린 뒤 시작하세요”**로 한다. 특정 고정 준비 자세는
+요구하지 않는다. 물건·구역을 카메라에서 가리지 않고, 위로 이동할 공간이 있으며,
+그리퍼에 물건을 들고 있지 않은 상태인지 확인한다. 그리퍼는 작업 시작 시 코드가 연다.
 
 카메라 크기·높이에 여유값을 더하고, 테이블 기준 그리퍼 길이와 종류별 집기 오프셋을
 자동 계산한다. 교시는 30분 안에 완료한다. 설정/교시 파일이 이미 있으면 새 경로로 시작한다.
