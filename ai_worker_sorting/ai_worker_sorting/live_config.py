@@ -1,6 +1,7 @@
 """Validate the hardware profile before a live stack can start."""
 from pathlib import Path
 import math
+import json
 import yaml
 
 
@@ -15,6 +16,11 @@ def validate_live_config(path):
         except (TypeError,KeyError):
             raise ValueError(f'Missing live configuration section: {name}') from None
     worker = cfg['worker_service']
+    offsets = json.loads(worker.get('class_grasp_offsets','{}'))
+    if not isinstance(offsets,dict) or any(not isinstance(k,str) or not isinstance(v,(int,float)) or not math.isfinite(v) or abs(v)>=.5 for k,v in offsets.items()):
+        raise ValueError('Invalid per-class grasp offsets')
+    if worker.get('check_camera_footprint') and len(offsets)!=2:
+        raise ValueError('Camera setup requires taught grasp offsets for exactly two classes')
     if worker.get('dry_run') is not False or worker.get('robot_backend')!='robotis_movel':
         raise ValueError('Live launch requires dry_run: false and robot_backend: robotis_movel')
     if worker.get('hardware_configured') is not True or worker.get('shared_grasp_verified') is not True:

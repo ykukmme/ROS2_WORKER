@@ -3,6 +3,7 @@ import json
 import math
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
 import rclpy
@@ -10,6 +11,9 @@ from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallb
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.time import Time
 from tf2_ros import Buffer, TransformListener
+from sensor_msgs.msg import CameraInfo,Image
+from cv_bridge import CvBridge
+from rclpy.qos import qos_profile_sensor_data
 from ai_worker_interfaces.msg import SortRule
 from ai_worker_interfaces.srv import DetectObjects, ScanZones, PrepareAutoSort, StartTask, SessionStatus
 
@@ -27,7 +31,8 @@ class AutoWorker(WorkerService):
                         source_roi=[0.,0.,640.,360.], empty_scans=3, scan_interval=.25,
                         home_mode='configured', placement_height_mode='fixed',
                         min_object_height=.01, max_object_height=.25, transport_above_objects=False,
-                        tool_below_tcp=0.)
+                        tool_below_tcp=0.,class_grasp_offsets='{}',check_camera_footprint=False,
+                        camera_info_topic='/worker_camera/camera_info',geometry_depth_topic='/worker_camera/depth_rect')
         for key, value in defaults.items():
             self.declare_parameter(key, value)
             self.cfg[key] = self.get_parameter(key).value
@@ -37,6 +42,19 @@ class AutoWorker(WorkerService):
         if self.cfg['empty_scans'] < 2 or not .05 <= self.cfg['scan_interval'] <= 5:
             raise ValueError('Invalid scan settings')
         self.auto_lock = threading.RLock()
+        self.class_offsets = json.loads(self.cfg['class_grasp_offsets'])
+        if not isinstance(self.class_offsets,dict) or any(not isinstance(k,str) or not isinstance(v,(int,float)) or not math.isfinite(v) or abs(v)>=.5 for k,v in self.class_offsets.items()):
+            raise ValueError('Invalid per-class grasp offsets')
+        if self.cfg['check_camera_footprint'] and len(self.class_offsets)!=2:
+            raise ValueError('Camera setup requires taught grasp offsets for both classes')
+        self.geometry_info = None
+        self.geometry_depths = deque(maxlen=60)
+        def depth_callback(msg):
+            with self.auto_lock:
+                self.geometry_depths.append(msg)
+        self.geometry_depth_sub = self.create_subscription(Image,self.cfg['geometry_depth_topic'],depth_callback,qos_profile_sensor_data)
+        self.geometry_sub = self.create_subscription(CameraInfo,self.cfg['camera_info_topic'],
+            lambda msg:setattr(self,'geometry_info',msg),qos_profile_sensor_data)
         self.robot_tf = Buffer()
         self.robot_tf_listener = TransformListener(self.robot_tf,self)
         self.preparing = False
@@ -123,6 +141,14 @@ class AutoWorker(WorkerService):
             classes = sorted({o.class_name for o in objects})
             if len(classes) != 2:
                 raise ValueError(f'Exactly two confident source classes required; found {classes}')
+            if self.class_offsets and set(classes)!=set(self.class_offsets):
+                raise ValueError('Detected classes differ from the taught grasp classes; repeat setup')
+            if self.cfg['check_camera_footprint']:
+                table_heights = [p.z for z in zones.zones for p in z.boundary.polygon.points]
+                if len(table_heights)!=8 or max(table_heights)-min(table_heights)>.015:
+                    raise ValueError('Camera setup requires a common level tabletop')
+                for candidate in objects:
+                    self.check_footprint(candidate,snapshot.header,sum(table_heights)/8)
             ordered = sorted(zones.zones, key=lambda z: z.zone_id)
             mapping = dict(zip(classes, [z.zone_id for z in ordered]))
             slots = {}
@@ -204,6 +230,42 @@ class AutoWorker(WorkerService):
                 points.append((obj,point))
         return points
 
+    def check_footprint(self,obj,header,table_z):
+        if not self.cfg['check_camera_footprint']:
+            return
+        from .auto_geometry import footprint,depth_top
+        info = self.geometry_info
+        if info is None or info.header.frame_id!=header.frame_id:
+            raise ValueError('No matching camera intrinsics for footprint validation')
+        stamp = header.stamp.sec*1_000_000_000+header.stamp.nanosec
+        info_stamp = info.header.stamp.sec*1_000_000_000+info.header.stamp.nanosec
+        if abs(info_stamp-stamp)>1_000_000_000:
+            raise ValueError('Camera intrinsics are stale')
+        observed = Time.from_msg(header.stamp)
+        deadline = time.monotonic()+.5
+        while not self.robot_tf.can_transform(self.cfg['base_frame'],header.frame_id,observed) and time.monotonic()<deadline:
+            time.sleep(.02)
+        tf = self.robot_tf.lookup_transform(self.cfg['base_frame'],header.frame_id,observed).transform
+        t,q,b = tf.translation,tf.rotation,obj.bbox
+        with self.auto_lock:
+            candidates = [m for m in self.geometry_depths if m.header.frame_id==header.frame_id and
+                abs(m.header.stamp.sec*1_000_000_000+m.header.stamp.nanosec-stamp)<=60_000_000]
+        if not candidates:
+            raise ValueError('No synchronized full object depth for geometry check')
+        depth = min(candidates,key=lambda m:abs(m.header.stamp.sec*1_000_000_000+m.header.stamp.nanosec-stamp))
+        pixels = CvBridge().imgmsg_to_cv2(depth,desired_encoding='passthrough')
+        if pixels.shape!=(info.height,info.width):
+            raise ValueError('Depth/intrinsics dimensions differ')
+        top = depth_top(pixels,depth.encoding,(b.center.position.x,b.center.position.y,b.size_x,b.size_y),
+            (info.p[0],info.p[5],info.p[2],info.p[6]),(t.x,t.y,t.z),(q.x,q.y,q.z,q.w),table_z)
+        if top-table_z>self.cfg['max_object_height']:
+            raise ValueError('Object exceeds camera-calibrated maximum height; repeat setup')
+        size = footprint((b.center.position.x,b.center.position.y,b.size_x,b.size_y),
+            (info.p[0],info.p[5],info.p[2],info.p[6]),(t.x,t.y,t.z),(q.x,q.y,q.z,q.w),
+            table_z,top,(info.width,info.height))
+        if size>self.cfg['object_size']:
+            raise ValueError('Object exceeds camera-calibrated footprint; repeat setup')
+
     def verify_placement(self, obj, slot, source, check):
         after = self.get_clock().now().nanoseconds
         limit = time.monotonic()+self.cfg['service_timeout']
@@ -281,7 +343,14 @@ class AutoWorker(WorkerService):
                     continue
                 empty = 0
                 obj = max(objects, key=lambda o:o.confidence)
+                if self.cfg['check_camera_footprint']:
+                    # Bound all recognized obstacles, including ones not picked next.
+                    table_z = sum(p.z for z in session.zones for p in z.boundary.polygon.points)/8
+                    for candidate in snapshot.objects:
+                        if candidate.localized and not candidate.simulated and candidate.class_name in session.mapping:
+                            self.check_footprint(candidate,snapshot.header,table_z)
                 target = self.select_target([obj], obj.class_name)
+                grasp_offset = self.class_offsets.get(obj.class_name,self.cfg['auto_grasp_offset'])
                 with self.auto_lock:
                     reserved = session.reserve(obj.class_name)
                     if self.cfg['placement_height_mode']=='object_surface':
@@ -290,7 +359,7 @@ class AutoWorker(WorkerService):
                         height = target.z-table_z
                         if not self.cfg['min_object_height']<=height<=self.cfg['max_object_height']:
                             raise ValueError('Object surface height is inconsistent with the table')
-                        release_z = table_z+height+self.cfg['auto_grasp_offset']
+                        release_z = table_z+height+grasp_offset
                         if release_z-self.cfg['tool_below_tcp']<=table_z+.005:
                             raise ValueError('TCP grasp offset would enter the tabletop')
                         reserved.position = Point(reserved.position.x,reserved.position.y,release_z)
@@ -318,9 +387,9 @@ class AutoWorker(WorkerService):
                     transport_z = max(p.z for z in session.zones for p in z.boundary.polygon.points)
                     transport_z += self.cfg['max_object_height']+self.cfg['clearance']
                     held_height = height if self.cfg['placement_height_mode']=='object_surface' else self.cfg['max_object_height']
-                    transport_z += max(self.cfg['tool_below_tcp'],held_height+self.cfg['auto_grasp_offset'],0.)
+                    transport_z += max(self.cfg['tool_below_tcp'],held_height+grasp_offset,0.)
                 pick_and_place(robot, target, reserved.position, home,
-                               self.cfg['workspace'], self.cfg['clearance'], self.cfg['auto_grasp_offset'], check, report,
+                               self.cfg['workspace'], self.cfg['clearance'], grasp_offset, check, report,
                                transport_z=transport_z)
                 if live_robot is not None:
                     report('VERIFY_PLACEMENT')

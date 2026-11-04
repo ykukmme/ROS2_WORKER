@@ -8,7 +8,7 @@ python_bin="${WORKER_PYTHON:-python3}"
 command="${1:-help}"
 if [[ $# -gt 0 ]]; then shift; fi
 if [[ "$command" == help ]]; then
-  printf '%s\n' 'Usage: bash scripts/worker.sh {check|build|configure|doctor|run|prepare|start|status|cancel|session} [arguments]' \
+  printf '%s\n' 'Usage: bash scripts/worker.sh {check|build|configure|calibrate|teach|doctor|run|prepare|start|status|cancel|session} [arguments]' \
     'Source the existing ROS2 and ROBOTIS environment first.' \
     'WORKER_WS: overlay workspace; WORKER_CONFIG: local live YAML; WORKER_PYTHON: existing Python executable.'
   exit 0
@@ -34,6 +34,11 @@ fi
 source "$overlay"
 case "$command" in
   configure) exec "$python_bin" -m ai_worker_sorting.configure_live --output "$config_file" "$@" ;;
+  teach) exec "$python_bin" -m ai_worker_sorting.configure_auto "$@" ;;
+  calibrate)
+    prefix=()
+    if [[ -n "${WORKER_PYTHON:-}" ]]; then prefix+=("python_prefix:=$WORKER_PYTHON"); fi
+    exec ros2 launch ai_worker_sorting calibration.launch.py "${prefix[@]}" "$@" ;;
   doctor) exec "$python_bin" -m ai_worker_sorting.worker_cli doctor --config "$config_file" "$@" ;;
   run)
     prefix=()

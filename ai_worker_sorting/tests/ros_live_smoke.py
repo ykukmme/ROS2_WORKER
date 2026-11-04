@@ -127,7 +127,16 @@ class ControllerFixture(Node):
         info.d,info.distortion_model = [0.]*5,'plumb_bob'
         self.info.publish(info)
         color = self.bridge.cv2_to_imgmsg(np.full((480,640,3),180,dtype=np.uint8),encoding='bgr8')
-        depth = self.bridge.cv2_to_imgmsg(np.full((480,640),900,dtype=np.uint16),encoding='16UC1')
+        depth_pixels = np.full((480,640),900,dtype=np.uint16)
+        for obj in self.objects:
+            u,v = obj['pixel']
+            x0,y0 = max(0,int(np.floor(u-20))),max(0,int(np.floor(v-20)))
+            x1,y1 = min(640,int(np.ceil(u+20))+1),min(480,int(np.ceil(v+20))+1)
+            value = int(1000*(1-obj['point'].z))
+            depth_pixels[y0:y1,x0:x1] = value
+            # A visible rim can be higher than the reported central surface.
+            depth_pixels[y0:y0+2,x0:x1] = value-int(1000*getattr(self,'height_peak',0.))
+        depth = self.bridge.cv2_to_imgmsg(depth_pixels,encoding='16UC1')
         color.header = depth.header = info.header
         self.rgb.publish(color)
         self.depth.publish(depth)
@@ -169,6 +178,8 @@ def main():
         robot_backend='robotis_movel',base_frame='live_test_base',tool_link='live_test_tcp',
         controller_frame='live_test_base',
         controller_node='/live_test_controller_fixture',tool_below_tcp=.02,
+        class_grasp_offsets=json.dumps({'can':-.02,'cup':-.01}),check_camera_footprint=True,object_size=.14,
+        max_object_height=.08,
         movel_topic='/live_test/movel',gripper_trajectory_topic='/live_test/gripper',
         joint_states_topic='/live_test/joints',gripper_open=0.,gripper_closed=.7,
         move_duration=.1,gripper_duration=.1,cartesian_speed=.15,action_timeout=8.,
@@ -234,6 +245,14 @@ def main():
             assert json.loads(result.stdout)['motion_commands_sent'] is False
         cases.append('connected-PC wrapper sources the overlay and doctor checks RGB-D, joints, TF and controller without motion')
         cases.append('read-only configuration tool discovers real typed endpoints and writes a live profile')
+        fixture.height_peak = .1
+        time.sleep(.15)
+        rejected = cli('prepare',expected=1)
+        assert not rejected.success and 'height' in rejected.message.lower()
+        assert not fixture.moves and not fixture.grips
+        fixture.height_peak = 0.
+        time.sleep(.15)
+        cases.append('high outer rims exceeding the scanned bound reject preparation before any actuator command')
         prepared = cli('prepare')
         assert prepared.success,prepared.message
         started = cli('start','--session-id',prepared.session_id,'--max-objects','2')
@@ -250,9 +269,12 @@ def main():
         assert not cli('cancel','--task-id',started.task_id,expected=1).accepted
         cases.append('PC CLI prepares, starts, queries task/session and returns nonzero for rejected cancellation')
         assert all(obj['placed'] for obj in fixture.objects)
-        # table .1 + maximum obstacle .25 + clearance .1 + held extent .03
-        assert max(m.pose.pose.position.z for m in fixture.moves)>=.48-1e-6
+        # table .1 + maximum obstacle .08 + clearance .1 + held extent .04
+        assert any(m.pose.pose.position.y>0 and m.pose.pose.position.x>.4 and
+                   abs(m.pose.pose.position.z-.32)<1e-6 for m in fixture.moves)
         assert np.allclose([fixture.pose.x,fixture.pose.y,fixture.pose.z],[.3,0.,.4])
+        assert any(m.pose.pose.position.y>0 and m.pose.pose.position.x>.4 and
+                   abs(m.pose.pose.position.z-.14)<1e-6 for m in fixture.moves)
         cases.append('dry_run=false completes two-class placement with actual MoveL/raw-gripper messages and visual grasp/place checks')
         cases.append('captured home TCP and per-object surface height are used for actual goals')
         before = len(fixture.moves)

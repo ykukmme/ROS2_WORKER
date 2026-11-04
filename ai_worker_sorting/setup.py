@@ -27,5 +27,6 @@ setup(
         'rgbd_detector = ai_worker_sorting.rgbd_detector:main',
         'configure_live = ai_worker_sorting.configure_live:main',
         'worker_cli = ai_worker_sorting.worker_cli:main',
+        'configure_auto = ai_worker_sorting.configure_auto:main',
     ]},
 )

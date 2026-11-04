@@ -105,34 +105,56 @@ bash scripts/worker.sh build
 
 ## 4. 현장 설정 생성
 
-로봇의 제어 링크를 위에서 집는 방향으로 준비한다. 현재 방향을 읽어 저장한다.
-실측 workspace·물건 크기·높이·제어 링크 기준 그리퍼 치수를 입력한다.
+**물건 크기·높이·그리퍼 길이를 숫자로 입력하지 않는 방법이다.**
+카메라 스캔 후, 기존 조그 조작으로 그리퍼 기준 위치와 두 종류의 집기 자세를 한 번씩 지정한다.
+이 도구는 팔·그리퍼 명령을 보내지 않는다. 자동 분류 worker는 종료한 상태여야 한다.
+작업 범위 `WORKSPACE`와 카메라↔로봇 좌표 보정은 여전히 필요하다.
 
 ```bash
 export WORKER_CONFIG="$HOME/ros2_worker_config/live.local.yaml"
+STATE="$HOME/ros2_worker_config/teaching.local.yaml"
 WORKSPACE='xmin,xmax,ymin,ymax,zmin,zmax'
-MAX_FOOTPRINT='두_물건의_최대_가로세로_m'
-MAX_HEIGHT='두_물건의_최대_높이_m'
-GRASP_OFFSET='물건_윗면에서_제어_링크까지_Z오프셋_m'
-TOOL_BELOW_TCP='제어_링크_아래_그리퍼_최대길이_m'
 WEIGHTS='/absolute/path/on/this/pc/best.pt'
-
-bash scripts/worker.sh configure \
-  --weights "$WEIGHTS" --workspace "$WORKSPACE" \
-  --object-size "$MAX_FOOTPRINT" --max-object-height "$MAX_HEIGHT" \
-  --grasp-offset "$GRASP_OFFSET" --tool-below-tcp "$TOOL_BELOW_TCP" \
-  --device cpu
+# 첫 터미널: 인식·구역 노드만 실행. 카메라 드라이버는 로봇에서 실행 중이어야 함.
+bash scripts/worker.sh calibrate weights:="$WEIGHTS" device:=cpu
 ```
 
-위 한글 변수 값은 실제 숫자로 바꿔야 한다. 예: 길이 `0.06`, 음수 오프셋 `-0.02`,
-workspace는 쉼표로 구분한 숫자 6개다. GPU를 쓰면 호환 환경에서 `--device 0`으로 지정한다.
-테이프 기본 색상은 빨강·파랑이며 생성된 YAML의 `zone_service.zone_colors`로 바꿀 수 있다.
-카메라·프레임·토픽 옵션은 [실물 실행 안내](ai_worker_sorting/LIVE_ROBOT.md#3-실제-피드백에서-설정-생성)를 따른다.
+두 번째 터미널에서도 같은 ROS2 환경·위 변수들을 설정한다. 수평인 같은 테이블에
+빈 빨강·파랑 구역을 놓고, 팔을 치운 상태에서 두 종류의 물건 전체가 겹치지 않게 보이도록 한다.
+각 종류에 속한 물건 중 가장 큰 것도 함께 보여준다.
 
-이 명령은 설정만 생성하고 팔을 움직이지 않는다. 실제 Cyclo 파라미터에서 제어 링크를
-읽는다. 파일이 이미 있으면 덮어쓰지 않으므로 기존 파일을 편집하거나 `WORKER_CONFIG`를 새 경로로 지정한다.
-기존 설정에도 이동 속도 `0.02`, 회전 속도 `0.15`, 최소 시간 `5.0`, action/task timeout
-`60.0/600.0`을 적용한다. 해당 YAML 항목은 실물 안내에 있다.
+```bash
+bash scripts/worker.sh teach scan --state "$STATE" \
+  --weights "$WEIGHTS" --workspace="$WORKSPACE" --device cpu
+```
+
+출력된 YOLO 종류 이름 두 개를 확인한다. 이제 물건·테이블·카메라는 움직이지 않는다.
+로봇의 기존 조그 기능으로 위에서 집는 방향을 정한 뒤, 빈 테이블 위에 그리퍼를 둔다.
+**작업 중 가장 아래로 내려오는 그리퍼 부분을 테이블 높이에 맞추고** 아래 명령으로 기록한다.
+개폐에 따라 최저점이 달라지면 각각 같은 방향으로 맞춰 `tool`을 다시 기록한다. 가장 큰 길이를 보존한다.
+
+```bash
+bash scripts/worker.sh teach tool --state "$STATE" --tips-at-table
+```
+
+같은 방향을 유지하며 첫 종류의 물건을 실제로 집을 위치로 조그한다.
+테이블과 닿지 않고 물건을 잡을 수 있는 자세인지 확인한 뒤 기록한다.
+두 번째 종류도 반복한다. 아래 이름은 `scan`에서 반환된 실제 이름으로 바꾼다.
+
+```bash
+bash scripts/worker.sh teach grasp --state "$STATE" --class-name '첫_종류' --grasp-pose-confirmed
+bash scripts/worker.sh teach grasp --state "$STATE" --class-name '둘째_종류' --grasp-pose-confirmed
+# 두 종류 기록 후 팔을 준비 위치로 올린다. 집기 방향은 그대로 유지한다.
+bash scripts/worker.sh teach write --state "$STATE" --output "$WORKER_CONFIG"
+```
+
+카메라 크기·높이에 여유값을 더하고, 테이블 기준 그리퍼 길이와 종류별 집기 오프셋을
+자동 계산한다. 교시는 30분 안에 완료한다. 설정/교시 파일이 이미 있으면 새 경로로 시작한다.
+탐지 영역 전체 깊이에서 최고점을 구한다. 깊이가 한 부분이라도 누락되거나 물건이 가려지거나
+얇으면 설정을 거부한다. 보이지 않은 물건의 크기까지 추정하지 않는다.
+작업 중 관측한 크기가 설정 범위를 넘으면 멈춘다. 종류·집는 방향·그리퍼가 바뀌면 다시 교시한다.
+
+첫 터미널의 `calibrate`를 Ctrl+C로 종료한 뒤:
 
 ```bash
 bash scripts/worker.sh doctor
@@ -140,6 +162,9 @@ bash scripts/worker.sh doctor
 
 `doctor`는 명령을 발행하지 않고 PC에서 실제 RGB·깊이·카메라 정보·관절·TF와 Cyclo
 설정에 접근 가능한지 확인한다. PASS는 연결 진단이며 실제 좌표 정확도나 집기 성공 보장은 아니다.
+카메라·프레임이 기본값과 다르면 `calibrate` launch의 해당 인자와 `teach scan`의
+`--color-topic`, `--depth-topic`, `--camera-info-topic`, `--base-frame`을 같은 값으로 지정한다.
+이미 정확한 치수를 알고 있다면 기존 [숫자 설정 방식](ai_worker_sorting/LIVE_ROBOT.md#3-실제-피드백에서-설정-생성)도 사용할 수 있다.
 
 ## 5. 실행과 작업 명령
 

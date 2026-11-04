@@ -1,6 +1,7 @@
 """Read existing robot feedback and write an executable local live profile. No motion."""
 import argparse
 import math
+import json
 from pathlib import Path
 import time
 import yaml
@@ -27,6 +28,9 @@ def main():
     parser.add_argument('--grasp-offset',required=True,type=float,help='TCP Z offset from visible object TOP surface, metres')
     parser.add_argument('--tool-below-tcp',required=True,type=float,help='Maximum downward tool extent below the controlled link, metres')
     parser.add_argument('--max-object-height',type=float,default=.25,help='Upper bound for both object heights, metres')
+    parser.add_argument('--class-grasp-offsets',default='{}',help='JSON of per-class taught TCP offsets')
+    parser.add_argument('--check-camera-footprint',action='store_true')
+    parser.add_argument('--expected-tool-quaternion',type=numbers)
     parser.add_argument('--source-roi',type=numbers,help='left,top,right,bottom in camera pixels; default full image')
     parser.add_argument('--color-topic',default='/camera/color/image_raw')
     parser.add_argument('--depth-topic',default='/camera/aligned_depth_to_color/image_raw')
@@ -93,6 +97,10 @@ def main():
         norm = math.sqrt(sum(x*x for x in quaternion))
         if not math.isfinite(norm) or norm<1e-8:
             raise RuntimeError('Invalid measured TCP orientation')
+        if args.expected_tool_quaternion is not None:
+            expected = args.expected_tool_quaternion
+            if len(expected)!=4 or not all(math.isfinite(x) for x in expected) or abs(sum(x*x for x in expected)-1)>.001 or abs(sum(a*b/norm for a,b in zip(expected,quaternion)))<.999:
+                raise ValueError('Current tool orientation differs from the taught grasp orientation')
         roi = args.source_roi or [0.,0.,float(data['info'].width),float(data['info'].height)]
         if len(roi)!=4 or not (0<=roi[0]<roi[2]<=data['info'].width and 0<=roi[1]<roi[3]<=data['info'].height):
             raise ValueError('Source ROI is outside the actual camera image')
@@ -117,6 +125,8 @@ def main():
                 action_timeout=60.,task_timeout=600.,
                 workspace=args.workspace,source_roi=roi,object_size=args.object_size,
                 auto_grasp_offset=args.grasp_offset,placement_height_mode='object_surface',
+                class_grasp_offsets=json.dumps(json.loads(args.class_grasp_offsets)),
+                check_camera_footprint=args.check_camera_footprint,
                 home_mode='current_tcp',clearance=.10,transport_above_objects=True,
                 max_object_height=args.max_object_height,stop_file='')},
         }
