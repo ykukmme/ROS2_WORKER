@@ -22,10 +22,9 @@ VLA/VLM은 사용하지 않는다.
 Windows PC라면 로봇의 기존 Linux 개발 컨테이너에 SSH 접속해 같은 절차를 실행할 수도 있다.
 
 ```bash
-GIT_TERMINAL_PROMPT=0 git -c credential.helper= clone --branch codex/initial-release https://github.com/ykukmme/ROS2_WORKER.git
+git clone https://github.com/ykukmme/ROS2_WORKER.git
 cd ROS2_WORKER
 # 로봇에서 사용하는 ROS2 환경을 먼저 source한 상태여야 한다.
-bash scripts/worker.sh check
 bash scripts/worker.sh build
 bash scripts/worker.sh menu
 ```
@@ -33,7 +32,7 @@ bash scripts/worker.sh menu
 기존 로봇 패키지를 덮어쓰거나 OS/CUDA/PyTorch를 자동 업그레이드하지 않는다.
 설정 생성 → 연결 진단 → 실행 → 작업 시작 → Git 업데이트 명령은 [DEPLOYMENT.md](DEPLOYMENT.md)에 있다.
 **평소 사용은 [터미널 메뉴 안내](TERMINAL_MENU.md)를 따른다.** 메뉴가 인식 노드·설정·작업 ID를 관리한다.
-AI WORKER에는 공식 제어기·카메라가 실행 중이어야 한다. PC에서는 `doctor`로 연결을 검사한다.
+AI WORKER에는 공식 제어기·카메라가 실행 중이어야 한다. 필요하면 메뉴의 `6 연결 검사`를 사용한다.
 물건·그리퍼 치수는 직접 입력하는 대신 카메라 스캔과 1회 자세 교시로 설정할 수 있다.
 
 ## 모의 분류

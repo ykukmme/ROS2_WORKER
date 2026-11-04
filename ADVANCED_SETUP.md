@@ -112,7 +112,7 @@ bash scripts/worker.sh status --task-id '반환된_task_id'
 
 ```bash
 git status --short
-GIT_TERMINAL_PROMPT=0 git -c credential.helper= pull --ff-only origin codex/initial-release
+git pull
 bash scripts/worker.sh build
 bash scripts/worker.sh doctor
 bash scripts/worker.sh run

@@ -5,12 +5,11 @@ GitHub 로그인 없이 진행하는 최초 설치·연결 절차는 [DEPLOYMENT
 
 ```bash
 cd "$HOME/ROS2_WORKER"
-GIT_TERMINAL_PROMPT=0 git -c credential.helper= pull --ff-only origin codex/initial-release
-bash scripts/worker.sh build
 bash scripts/worker.sh menu
 ```
 
-빌드는 설치·업데이트 후에만 필요하다. 평소에는 `menu` 한 명령으로 실행한다.
+평소에는 위 명령으로 메뉴만 실행한다. 설치·업데이트할 때의 `git pull`·빌드는
+[설치 가이드](DEPLOYMENT.md#7-로그인-없이-업데이트)를 따른다.
 다른 터미널에서 이 저장소의 분류 서버를 따로 실행하지 않는다.
 
 ```text
@@ -43,7 +42,8 @@ AI WORKER 분류 — 설정: 있음/없음
 
 ## 평소 사용할 때
 
-`2`로 물건·구역 배정을 확인하고 `3`으로 분류를 시작한다. 시작 직전에도 구역·물건을 다시 확인한다.
+`3 분류 시작`을 바로 선택한다. 물건·구역 배정은 시작 과정에서 자동 확인한다.
+`2`는 배정을 미리 보기 위한 선택 메뉴다.
 팔은 작업물에서 떨어져 있어야 하며 카메라를 가리지 않고 위로 이동할 공간이 있어야 한다.
 그리퍼는 비어 있어야 한다. 고정 준비 자세나 미리 열린 그리퍼를 요구하지 않는다.
 

@@ -14,13 +14,18 @@
 이 문서는 ROS2 설치 자체나 카메라 외부 보정을 대신하지 않는다. 개발 검증은 Humble에서 했다.
 장비가 Jazzy이면 해당 환경에서 빌드한다. 로봇의 기존 배포판을 바꾸지 않는다.
 
-PC 터미널에서:
+PC 터미널에서 ROS2 환경을 적용한다:
 
 ```bash
-ls /opt/ros
 # Humble 예시. 장비가 Jazzy라면 humble을 jazzy로 바꾼다.
 source /opt/ros/humble/setup.bash
 # ROBOTIS 인터페이스가 별도 workspace에 있으면 해당 install/setup.bash도 source
+```
+
+아래는 환경 확인이 필요할 때만 실행하는 진단 명령이다:
+
+```bash
+ls /opt/ros
 printenv ROS_DISTRO ROS_DOMAIN_ID RMW_IMPLEMENTATION
 command -v ros2
 command -v colcon
@@ -45,14 +50,13 @@ sudo apt install git
 
 ```bash
 cd "$HOME"
-GIT_TERMINAL_PROMPT=0 git -c credential.helper= clone \
-  --branch codex/initial-release \
-  https://github.com/ykukmme/ROS2_WORKER.git
+git clone https://github.com/ykukmme/ROS2_WORKER.git
 cd "$HOME/ROS2_WORKER"
 ```
 
-이 명령은 계정 입력창을 띄우지 않고 저장된 인증 도우미도 사용하지 않는다.
-전역 Git 설정은 변경하지 않는다. 이미 폴더가 있으면 다시 clone하지 말고 7단계를 따른다.
+공개 저장소이므로 일반적인 Ubuntu 환경에서는 로그인 없이 내려받는다.
+기본 브랜치가 자동 선택되므로 브랜치 옵션도 필요 없다.
+이미 폴더가 있으면 다시 clone하지 말고 7단계를 따른다.
 컨테이너에서는 재생성해도 유지되는 볼륨에 소스·설정·빌드 결과를 둔다.
 
 ## 3. 의존성 확인과 최초 빌드
@@ -61,15 +65,14 @@ cd "$HOME/ROS2_WORKER"
 
 ```bash
 cd "$HOME/ROS2_WORKER"
-bash scripts/worker.sh check
 bash scripts/worker.sh build
 ```
 
-`check`가 실패하면 표시된 누락 항목을 해당 환경에 준비하고 다시 실행한다.
 필요한 항목은 ROS2 패키지(`package.xml`), NumPy·OpenCV·PyYAML·Ultralytics·호환 PyTorch다.
 YOLO 가중치는 PC의 별도 로컬 파일로 준비한다. Git에는 가중치가 포함되지 않는다.
+의존성 오류가 생겼을 때만 `bash scripts/worker.sh check`로 누락 항목을 확인한다.
 
-기존 별도 Python 환경을 사용하는 경우에만 `check` 전에 지정한다:
+기존 별도 Python 환경을 사용하는 경우에만 실행 전에 지정한다:
 
 ```bash
 export WORKER_PYTHON=/absolute/path/to/existing/venv/bin/python
@@ -85,7 +88,7 @@ AI WORKER에서 기존 절차대로 공식 구동·MoveL 제어기·카메라를
 PC와 로봇의 시간, `ROS_DOMAIN_ID`, RMW 및 DDS/Zenoh 구성을 맞춘다.
 도메인 번호를 임의로 정하지 말고 로봇의 설정을 사용한다.
 
-PC에서:
+로봇 토픽 연결을 별도로 확인하고 싶을 때만 PC에서 실행한다:
 
 ```bash
 ros2 node list
@@ -130,7 +133,8 @@ bash scripts/worker.sh menu
 0 종료
 ```
 
-`2`로 종류별 목적 구역을 확인하고 `3`을 선택한다. 처음에는 기본 2개만 처리한다.
+**평소에는 `3 분류 시작`을 바로 선택한다.** 시작 과정에서 물건·구역을 자동 확인한다.
+`2`는 작업을 시작하지 않고 배정만 미리 보고 싶을 때 사용한다. 처음에는 기본 2개만 처리한다.
 팔은 작업물과 떨어져 있고 카메라를 가리지 않으며, 위로 이동할 공간이 있어야 한다.
 그리퍼는 비어 있어야 한다. 고정 준비 자세나 미리 열린 그리퍼는 요구하지 않는다.
 
@@ -161,7 +165,7 @@ bash scripts/worker.sh menu
 ```bash
 cd "$HOME/ROS2_WORKER"
 git status --short
-GIT_TERMINAL_PROMPT=0 git -c credential.helper= pull --ff-only origin codex/initial-release
+git pull
 bash scripts/worker.sh build
 bash scripts/worker.sh menu
 ```
