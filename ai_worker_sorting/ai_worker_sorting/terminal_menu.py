@@ -265,6 +265,10 @@ class TerminalMenu:
                 options += ['--'+key.replace('_','-'),value]
             if worker.get('source_roi'):
                 options += ['--source-roi',','.join(map(str,worker['source_roi']))]
+            if os.environ.get('WORKER_ROBOT_DESCRIPTION_NODE'):
+                options += ['--robot-description-node',os.environ['WORKER_ROBOT_DESCRIPTION_NODE']]
+            if os.environ.get('WORKER_ROBOT_URDF'):
+                options += ['--robot-urdf',os.environ['WORKER_ROBOT_URDF']]
             deadline = time.monotonic()+45
             while True:
                 try:
@@ -276,8 +280,8 @@ class TerminalMenu:
                     self.show('카메라·인식 결과를 기다리는 중입니다…')
                     time.sleep(1)
             data = yaml.safe_load(state.read_text())
-            self.ask('물건·카메라를 움직이지 마세요. 빈 테이블 높이에 그리퍼 최저점을 맞춘 뒤 Enter: ')
-            self.command('configure_auto','tool','--state',state,'--tips-at-table')
+            self.show('물건·카메라를 움직이지 마세요. 그리퍼 형상과 장착/TCP가 정확한 URDF·TF를 사용합니다.')
+            self.show('첫 집기 자세에서 모델 형상을 읽어 그리퍼 길이를 계산합니다. 빈 테이블 기준 지정은 생략합니다.')
             for label,name in zip(TYPE_LABELS,data['samples']):
                 # Labels are discovered, never restricted to predefined products.
                 self.ask(f'{label}(현재 인식명: {name})를 집을 자세를 지정한 뒤 Enter: ')

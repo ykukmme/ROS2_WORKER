@@ -1,5 +1,7 @@
 from pathlib import Path
 import unittest
+import tempfile
+import yaml
 from ai_worker_sorting.terminal_menu import TerminalMenu
 
 
@@ -42,6 +44,27 @@ class Backend:
 
 
 class MenuTests(unittest.TestCase):
+    def test_wizard_uses_model_and_skips_table_reference(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            weights = root/'model.pt'
+            weights.write_bytes(b'test')
+            replies = iter([str(weights),'.1,.7,-.4,.4,.05,.8','cpu','','','',''])
+            menu = TerminalMenu(root/'live.local.yaml',Backend(),lambda _:next(replies),lambda _:None,Stack())
+            menu.launch = lambda *args:setattr(menu.stack,'stopped',False)
+            calls = []
+            def command(module,stage,*args,**kwargs):
+                calls.append(stage)
+                if stage=='scan':
+                    Path(args[args.index('--state')+1]).write_text(yaml.safe_dump({'samples':{'a':[],'b':[]}}))
+                elif stage=='write':
+                    Path(args[args.index('--output')+1]).write_text('model: fixture')
+                return ''
+            menu.command = command
+            menu.wizard()
+            self.assertEqual(calls,['scan','grasp','grasp','write'])
+            self.assertTrue(menu.config.exists())
+
     def menu(self,answers=()):
         self.backend,self.stack,self.output = Backend(),Stack(),[]
         responses = iter(answers)

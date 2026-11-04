@@ -17,6 +17,7 @@ from rclpy.node import Node
 from rclpy.time import Time
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo,Image
+from rcl_interfaces.srv import GetParameters
 from cv_bridge import CvBridge
 from tf2_ros import Buffer,TransformListener
 from ai_worker_interfaces.srv import DetectObjects,ScanZones
@@ -24,6 +25,31 @@ from .auto_geometry import footprint,teaching_offset,depth_top
 from .configure_live import numbers
 from .controller_contract import verify_controller
 from .zones import inside
+
+
+def model_extent(node,state,orientation):
+    from .tool_model import tool_extent
+    path = state.get('robot_urdf')
+    if path:
+        xml = Path(path).read_text(encoding='utf-8')
+    else:
+        name = state.get('robot_description_node','/robot_state_publisher').rstrip('/')+'/get_parameters'
+        client = node.create_client(GetParameters,name)
+        try:
+            if not client.wait_for_service(timeout_sec=5):
+                raise RuntimeError('Robot model unavailable: '+name)
+            future = client.call_async(GetParameters.Request(names=['robot_description']))
+            rclpy.spin_until_future_complete(node,future,timeout_sec=5)
+            if not future.done() or future.result() is None:
+                raise RuntimeError('Robot model parameter timed out')
+            values = future.result().values
+            if len(values)!=1 or values[0].type!=4 or not values[0].string_value:
+                raise ValueError('Expanded robot_description is unavailable')
+            xml = values[0].string_value
+        finally:
+            node.destroy_client(client)
+    extent = tool_extent(xml,state['tool_link'],state['gripper_joint'],orientation,path)
+    return extent
 
 
 def service(node,kind,name):
@@ -84,8 +110,13 @@ def scan(node,buffer,args,info,depths):
         rclpy.spin_once(node,timeout_sec=.02)
     tf = buffer.lookup_transform(args.base_frame,objects.header.frame_id,stamp).transform
     t,q = tf.translation,tf.rotation
-    candidates = [m for m in list(depths) if m.header.frame_id==objects.header.frame_id and
-        abs((m.header.stamp.sec-objects.header.stamp.sec)+(m.header.stamp.nanosec-objects.header.stamp.nanosec)/1e9)<=.06]
+    candidates = []
+    deadline = time.monotonic()+1
+    while not candidates and time.monotonic()<deadline:
+        candidates = [m for m in list(depths) if m.header.frame_id==objects.header.frame_id and
+            abs((m.header.stamp.sec-objects.header.stamp.sec)+(m.header.stamp.nanosec-objects.header.stamp.nanosec)/1e9)<=.06]
+        if not candidates:
+            rclpy.spin_once(node,timeout_sec=.02)
     if not candidates:
         raise ValueError('No synchronized complete depth image for maximum object height')
     depth = min(candidates,key=lambda m:abs((m.header.stamp.sec-objects.header.stamp.sec)*1e9+m.header.stamp.nanosec-objects.header.stamp.nanosec))
@@ -133,7 +164,9 @@ def scan(node,buffer,args,info,depths):
         class_offsets={},tool_below_tcp=None,
         movel_topic=args.movel_topic,gripper_trajectory_topic=args.gripper_topic,
         gripper_joint=args.gripper_joint,joint_states_topic=args.joint_states_topic,
-        color_topic=args.color_topic,depth_topic=args.depth_topic,camera_info_topic=args.camera_info_topic)
+        color_topic=args.color_topic,depth_topic=args.depth_topic,camera_info_topic=args.camera_info_topic,
+        tool_source=args.tool_source,robot_description_node=args.robot_description_node,
+        robot_urdf=str(args.robot_urdf.resolve()) if args.robot_urdf else None)
 
 
 def main():
@@ -155,6 +188,9 @@ def main():
     parser.add_argument('--depth-topic',default='/camera/aligned_depth_to_color/image_raw')
     parser.add_argument('--camera-info-topic',default='/camera/color/camera_info')
     parser.add_argument('--device',default='cpu')
+    parser.add_argument('--tool-source',choices=['model','table'],default='model')
+    parser.add_argument('--robot-description-node',default='/robot_state_publisher')
+    parser.add_argument('--robot-urdf',type=Path,help='Optional local expanded URDF with accessible mesh assets')
     parser.add_argument('--class-name')
     parser.add_argument('--tips-at-table',action='store_true')
     parser.add_argument('--grasp-pose-confirmed',action='store_true')
@@ -220,18 +256,23 @@ def main():
                 raise ValueError('Invalid source ROI')
             state = scan(node,buffer,args,info,depths)
         elif args.stage=='tool':
+            if state.get('tool_source','table')!='table':
+                raise ValueError('Model mode needs no table reference; teach the first grasp directly')
             extent = position[2]-state['table_z']+.003
             if not 0<=extent<=.5:
                 raise ValueError('Tool reference outside supported bounds')
-            if state.get('orientation') and abs(sum(a*b for a,b in zip(orientation,state['orientation'])))<.999:
+            if state.get('orientation') and abs(sum(a*b for a,b in zip(orientation,state['orientation'])))<.999999:
                 raise ValueError('Keep the same downward orientation for all teaching stages')
             state['tool_below_tcp'] = max(state['tool_below_tcp'] or 0.,extent)
             state['orientation'] = orientation
             state['class_offsets'] = {}  # A changed tool reference requires renewed grasp teaching.
         else:
             if state['tool_below_tcp'] is None:
-                raise ValueError('Record tool reference first')
-            if abs(sum(a*b for a,b in zip(orientation,state['orientation'])))<.999:
+                if state.get('tool_source','table')!='model':
+                    raise ValueError('Record tool reference first')
+                state['tool_below_tcp'] = model_extent(node,state,orientation)
+                state['orientation'] = orientation
+            if abs(sum(a*b for a,b in zip(orientation,state['orientation'])))<.999999:
                 raise ValueError('Keep the taught downward tool orientation')
             state['class_offsets'][args.class_name] = teaching_offset(state['samples'][args.class_name],position,
                 state['table_z'],state['tool_below_tcp'])

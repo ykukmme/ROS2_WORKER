@@ -33,7 +33,7 @@ bash scripts/worker.sh menu
 설정 생성 → 연결 진단 → 실행 → 작업 시작 → Git 업데이트 명령은 [DEPLOYMENT.md](DEPLOYMENT.md)에 있다.
 **평소 사용은 [터미널 메뉴 안내](TERMINAL_MENU.md)를 따른다.** 메뉴가 인식 노드·설정·작업 ID를 관리한다.
 AI WORKER에는 공식 제어기·카메라가 실행 중이어야 한다. 필요하면 메뉴의 `6 연결 검사`를 사용한다.
-물건·그리퍼 치수는 직접 입력하는 대신 카메라 스캔과 1회 자세 교시로 설정할 수 있다.
+물건 크기는 카메라로, 그리퍼 길이는 정확한 URDF 모델로 계산한다. 두 종류별 집기 자세는 한 번씩 지정한다.
 
 ## 모의 분류
 
@@ -65,11 +65,11 @@ ros2 service call /worker/start_task ai_worker_interfaces/srv/StartTask "{sessio
 
 ## 검증
 
-- Docker ROS2 Humble/Python 3.10 단위 테스트 57개.
+- Docker ROS2 Humble/Python 3.10 단위 테스트 63개.
 - Docker ROS2 Humble/Python 3.10에서 패키지 2개 빌드와 서비스 통합 시나리오 18개.
 - 실제 노트북 웹캠 → ROS2 → YOLO 영상 연결 검증.
 - 공식 MoveL·그리퍼 메시지와 PC 실행 도구·메뉴 백엔드로 13개 시나리오 검증(제어기 에뮬레이터).
-- 치수 입력 없는 카메라 스캔·자세 교시·설정 생성 5개 시나리오 검증.
+- 모델 기반 그리퍼 길이·카메라 스캔·자세 교시·설정 생성 6개 시나리오 검증.
 - 실제 로봇 장비에서의 ROS2 배포판·센서·컨트롤러 호환성은 아직 미검증.
 
 단위 테스트에는 NumPy, OpenCV, PyYAML이 필요하다.

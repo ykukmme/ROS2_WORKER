@@ -101,6 +101,9 @@ def main():
             expected = args.expected_tool_quaternion
             if len(expected)!=4 or not all(math.isfinite(x) for x in expected) or abs(sum(x*x for x in expected)-1)>.001 or abs(sum(a*b/norm for a,b in zip(expected,quaternion)))<.999:
                 raise ValueError('Current tool orientation differs from the taught grasp orientation')
+            # Preserve the exact orientation used for the model's clearance bound.
+            quaternion = expected
+            norm = math.sqrt(sum(x*x for x in quaternion))
         roi = args.source_roi or [0.,0.,float(data['info'].width),float(data['info'].height)]
         if len(roi)!=4 or not (0<=roi[0]<roi[2]<=data['info'].width and 0<=roi[1]<roi[3]<=data['info'].height):
             raise ValueError('Source ROI is outside the actual camera image')
