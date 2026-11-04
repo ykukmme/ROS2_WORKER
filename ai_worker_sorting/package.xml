@@ -19,6 +19,7 @@
   <exec_depend>trajectory_msgs</exec_depend>
   <exec_depend>robotis_interfaces</exec_depend>
   <exec_depend>rcl_interfaces</exec_depend>
+  <exec_depend>rosidl_runtime_py</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <export><build_type>ament_python</build_type></export>
 </package>

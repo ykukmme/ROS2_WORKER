@@ -43,7 +43,7 @@ class RobotisMoveLRobot:
         q = cfg['tool_quaternion']
         if len(q)!=4 or not all(math.isfinite(x) for x in q) or abs(sum(x*x for x in q)-1)>1e-3:
             raise ValueError('TCP orientation must be a normalized XYZW quaternion')
-        for name in ('move_duration','cartesian_speed','feedback_timeout','position_tolerance',
+        for name in ('move_duration','cartesian_speed','angular_speed','feedback_timeout','position_tolerance',
                      'orientation_tolerance','gripper_duration','gripper_tolerance','action_timeout'):
             if not math.isfinite(cfg[name]) or cfg[name]<=0:
                 raise ValueError(f'{name} must be positive')
@@ -182,7 +182,7 @@ class RobotisMoveLRobot:
         current,q,_ = self.current_pose()
         distance = math.dist((current.x,current.y,current.z),(point.x,point.y,point.z))
         duration = max(self.cfg['move_duration'],distance/self.cfg['cartesian_speed'],
-                       orientation_error(q,target_q)/.3)
+                       orientation_error(q,target_q)/self.cfg['angular_speed'])
         if duration+1>=self.cfg['action_timeout']:
             raise ValueError('Move duration exceeds configured action_timeout')
         began = self.node.get_clock().now().nanoseconds

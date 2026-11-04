@@ -1,5 +1,8 @@
 # 실제 AI WORKER 실행
 
+연결 PC에서 Git으로 설치하고 조작하는 전체 절차는 [DEPLOYMENT.md](../DEPLOYMENT.md)를 따른다.
+이 문서는 실제 제어 인터페이스·현장 치수·보정 설정을 설명한다.
+
 이 실행 경로는 `DryRobot`을 사용하지 않는다.
 실제 RGB-D 영상과 관절/TF를 읽고 ROBOTIS Cyclo 컨트롤러에 `MoveL` 및 그리퍼 명령을 보낸다.
 VLA/VLM은 사용하지 않는다.
@@ -154,6 +157,21 @@ ros2 run ai_worker_sorting configure_live \
 
 ## 4. 실물용 스택 실행
 
+기본 이동 설정은 아래와 같다. 이미 생성한 설정 파일에 이동 값이 있으면 아래 값으로 수정한다.
+`cartesian_speed`는 이동 시간 계산 기준이며 실제 순간 최고 속도를 보장하는 제한은 아니다.
+
+```yaml
+worker_service:
+  ros__parameters:
+    cartesian_speed: 0.02  # 2 cm/s 기준
+    angular_speed: 0.15   # rad/s 기준
+    move_duration: 5.0    # 각 이동에 최소 5초 요청
+    action_timeout: 60.0
+    task_timeout: 600.0
+```
+
+예를 들어 방향 변화 없이 20cm 이동하면 최소 10초를 요청한다.
+
 ```bash
 ros2 launch ai_worker_sorting ai_worker_live.launch.py \
   config:="$HOME/ros2_worker_config/live.local.yaml"
@@ -204,7 +222,7 @@ ros2 service call /worker/start_task ai_worker_interfaces/srv/StartTask \
 
 - 단위 테스트 43개.
 - 기존 분류·서비스 ROS2 시나리오 18개.
-- 공식 `robotis_interfaces` 1.3.0 API로 실제 실행 경로 8개 시나리오.
+- 공식 `robotis_interfaces` 1.3.0 API와 PC 실행 도구로 10개 시나리오.
 - 실제 로컬 YOLO 추론, RGB-D 전처리, 설정 생성, `dry_run=false` 두 종류 배치,
   복귀/배치 높이, 미도달, 취소, 관절 피드백 소실을 확인했다.
 - 제어 검증에는 `/live_test/*` 토픽의 에뮬레이터를 사용했다. 실물 로봇 성공률 검증은 아니다.

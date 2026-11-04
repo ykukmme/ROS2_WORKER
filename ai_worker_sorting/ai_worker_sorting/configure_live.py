@@ -113,6 +113,8 @@ def main():
                 movel_topic=args.movel_topic,gripper_trajectory_topic=args.gripper_topic,
                 joint_states_topic=args.joint_states_topic,gripper_joint=args.gripper_joint,
                 gripper_open=0.,gripper_closed=.7,tool_quaternion=[x/norm for x in quaternion],
+                cartesian_speed=.02,angular_speed=.15,move_duration=5.,
+                action_timeout=60.,task_timeout=600.,
                 workspace=args.workspace,source_roi=roi,object_size=args.object_size,
                 auto_grasp_offset=args.grasp_offset,placement_height_mode='object_surface',
                 home_mode='current_tcp',clearance=.10,transport_above_objects=True,

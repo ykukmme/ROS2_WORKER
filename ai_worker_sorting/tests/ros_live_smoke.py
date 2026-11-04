@@ -5,12 +5,14 @@ The worker runs dry_run=False and publishes actual robotis_interfaces/MoveL.
 """
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 
 import numpy as np
 import rclpy
@@ -194,6 +196,11 @@ def main():
     clients = {name:probe.create_client(kind,'/worker/'+name) for name,kind in
                [('prepare_auto_sort',PrepareAutoSort),('start_task',StartTask),('task_status',TaskStatus),('session_status',SessionStatus)]}
     cases = []
+    def cli(command,*arguments,expected=0):
+        result = subprocess.run([sys.executable,'-m','ai_worker_sorting.worker_cli',command,*arguments],
+            capture_output=True,text=True,timeout=25)
+        assert result.returncode==expected,(result.stdout,result.stderr)
+        return SimpleNamespace(**json.loads(result.stdout))
     def call(name,request):
         client = clients[name]
         assert client.wait_for_service(timeout_sec=5)
@@ -217,10 +224,19 @@ def main():
                 '--movel-topic','/live_test/movel','--gripper-topic','/live_test/gripper'],capture_output=True,text=True,timeout=15)
             assert result.returncode==0,(result.stdout,result.stderr)
             assert profile.exists()
+            import yaml
+            settings = yaml.safe_load(profile.read_text())['worker_service']['ros__parameters']
+            assert settings['cartesian_speed']==.02 and settings['move_duration']==5.
+            result = subprocess.run(['bash',str(Path(__file__).resolve().parents[2]/'scripts/worker.sh'),'doctor'],
+                env=dict(os.environ,WORKER_CONFIG=str(profile),WORKER_WS='/tmp/ros2_worker_release_ws',
+                         WORKER_PYTHON=sys.executable),capture_output=True,text=True,timeout=25)
+            assert result.returncode==0,(result.stdout,result.stderr)
+            assert json.loads(result.stdout)['motion_commands_sent'] is False
+        cases.append('connected-PC wrapper sources the overlay and doctor checks RGB-D, joints, TF and controller without motion')
         cases.append('read-only configuration tool discovers real typed endpoints and writes a live profile')
-        prepared = call('prepare_auto_sort',PrepareAutoSort.Request())
+        prepared = cli('prepare')
         assert prepared.success,prepared.message
-        started = call('start_task',StartTask.Request(session_id=prepared.session_id,max_objects=2))
+        started = cli('start','--session-id',prepared.session_id,'--max-objects','2')
         assert started.accepted,started.message
         def terminal():
             result = call('task_status',TaskStatus.Request(task_id=started.task_id))
@@ -229,6 +245,10 @@ def main():
         assert result.state=='SUCCEEDED',(result.stage,result.message)
         session = call('session_status',SessionStatus.Request(session_id=prepared.session_id))
         assert session.placed_count==2 and fixture.moves and fixture.grips
+        assert cli('status','--task-id',started.task_id).state=='SUCCEEDED'
+        assert cli('session','--session-id',prepared.session_id).placed_count==2
+        assert not cli('cancel','--task-id',started.task_id,expected=1).accepted
+        cases.append('PC CLI prepares, starts, queries task/session and returns nonzero for rejected cancellation')
         assert all(obj['placed'] for obj in fixture.objects)
         # table .1 + maximum obstacle .25 + clearance .1 + held extent .03
         assert max(m.pose.pose.position.z for m in fixture.moves)>=.48-1e-6
