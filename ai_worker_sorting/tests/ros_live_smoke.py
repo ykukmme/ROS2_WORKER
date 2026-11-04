@@ -268,6 +268,35 @@ def main():
         assert cli('session','--session-id',prepared.session_id).placed_count==2
         assert not cli('cancel','--task-id',started.task_id,expected=1).accepted
         cases.append('PC CLI prepares, starts, queries task/session and returns nonzero for rejected cancellation')
+        from ai_worker_sorting.terminal_menu import RosBackend,TerminalMenu
+        menu_backend = RosBackend()
+        try:
+            menu = TerminalMenu(Path('/tmp/menu-test.local.yaml'),menu_backend,show=lambda _:None)
+            menu.task,menu.session = started.task_id,prepared.session_id
+            assert menu.status() and menu.state=='SUCCEEDED'
+            menu.cancel()
+            assert menu.state=='SUCCEEDED'
+        finally:
+            menu_backend.close()
+        cases.append('terminal menu backend resolves real typed task/session services without manual IDs')
+        signal_probe = '''
+import os, signal, threading
+from ai_worker_sorting.terminal_menu import RosBackend
+backend = RosBackend()
+try:
+    threading.Timer(.2,lambda:os.kill(os.getpid(),signal.SIGINT)).start()
+    try:
+        signal.pause()
+    except KeyboardInterrupt:
+        pass
+    assert backend.rclpy.ok()
+    assert backend.request('task_status',task_id=TASK_ID)['found']
+finally:
+    backend.close()
+'''.replace('TASK_ID',repr(started.task_id))
+        probe_result = subprocess.run([sys.executable,'-c',signal_probe],capture_output=True,text=True,timeout=15)
+        assert probe_result.returncode==0,(probe_result.stdout,probe_result.stderr)
+        cases.append('Ctrl+C preserves the menu ROS context and subsequent real task-status calls')
         assert all(obj['placed'] for obj in fixture.objects)
         # table .1 + maximum obstacle .08 + clearance .1 + held extent .04
         assert any(m.pose.pose.position.y>0 and m.pose.pose.position.x>.4 and

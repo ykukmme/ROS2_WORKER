@@ -26,10 +26,12 @@ cd ROS2_WORKER
 # 로봇에서 사용하는 ROS2 환경을 먼저 source한 상태여야 한다.
 bash scripts/worker.sh check
 bash scripts/worker.sh build
+bash scripts/worker.sh menu
 ```
 
 기존 로봇 패키지를 덮어쓰거나 OS/CUDA/PyTorch를 자동 업그레이드하지 않는다.
 설정 생성 → 연결 진단 → 실행 → 작업 시작 → Git 업데이트 명령은 [DEPLOYMENT.md](DEPLOYMENT.md)에 있다.
+**평소 사용은 [터미널 메뉴 안내](TERMINAL_MENU.md)를 따른다.** 메뉴가 인식 노드·설정·작업 ID를 관리한다.
 AI WORKER에는 공식 제어기·카메라가 실행 중이어야 한다. PC에서는 `doctor`로 연결을 검사한다.
 물건·그리퍼 치수는 직접 입력하는 대신 카메라 스캔과 1회 자세 교시로 설정할 수 있다.
 
@@ -63,10 +65,10 @@ ros2 service call /worker/start_task ai_worker_interfaces/srv/StartTask "{sessio
 
 ## 검증
 
-- Docker ROS2 Humble/Python 3.10 단위 테스트 50개.
+- Docker ROS2 Humble/Python 3.10 단위 테스트 57개.
 - Docker ROS2 Humble/Python 3.10에서 패키지 2개 빌드와 서비스 통합 시나리오 18개.
 - 실제 노트북 웹캠 → ROS2 → YOLO 영상 연결 검증.
-- 공식 MoveL·그리퍼 메시지와 PC 실행 도구로 11개 시나리오 검증(제어기 에뮬레이터).
+- 공식 MoveL·그리퍼 메시지와 PC 실행 도구·메뉴 백엔드로 13개 시나리오 검증(제어기 에뮬레이터).
 - 치수 입력 없는 카메라 스캔·자세 교시·설정 생성 5개 시나리오 검증.
 - 실제 로봇 장비에서의 ROS2 배포판·센서·컨트롤러 호환성은 아직 미검증.
 
