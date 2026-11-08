@@ -36,3 +36,4 @@ dist/
 .pytest_cache/
 .ruff_cache/
 *.log
+worker-data/

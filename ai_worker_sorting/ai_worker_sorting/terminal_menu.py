@@ -11,6 +11,7 @@ import threading
 import time
 import uuid
 import yaml
+from .runtime_defaults import inference_device,model_path
 
 TYPE_LABELS = ('첫 번째 종류','두 번째 종류')
 
@@ -165,8 +166,9 @@ class TerminalMenu:
             return
         if not self.config.is_file():
             raise RuntimeError('먼저 초기 설정을 완료하세요.')
-        self.command('worker_cli','doctor','--config',self.config)
-        self.launch('live','ai_worker_live.launch.py','config:='+str(self.config))
+        runtime = self.runtime_profile()
+        self.command('worker_cli','doctor','--config',runtime)
+        self.launch('live','ai_worker_live.launch.py','config:='+str(runtime))
         deadline = time.monotonic()+30
         while time.monotonic()<deadline:
             if not self.stack.alive():
@@ -175,6 +177,17 @@ class TerminalMenu:
                 return
         self.stack.stop()
         raise RuntimeError('분류 서버 시작 실패. menu-logs/live.log를 확인하세요.')
+
+    def runtime_profile(self):
+        document = yaml.safe_load(self.config.read_text(encoding='utf-8'))
+        detector = document['rgbd_detector']['ros__parameters']
+        detector['weights'] = str(model_path(detector.get('weights')))
+        detector['device'] = inference_device()
+        runtime = self.config.with_name('runtime.local.yaml')
+        temporary = runtime.with_name('runtime.local.yaml.pending')
+        temporary.write_text(yaml.safe_dump(document,sort_keys=False),encoding='utf-8')
+        os.replace(temporary,runtime)
+        return runtime
 
     def prepare(self):
         if not self.idle():
@@ -235,15 +248,21 @@ class TerminalMenu:
         detector = old.get('rgbd_detector',{}).get('ros__parameters',{})
         def field(text,default):
             return self.ask(f'{text} [{default}]: ').strip() or str(default)
-        weights = Path(field('로컬 YOLO 가중치 경로',detector.get('weights',''))).expanduser().resolve()
+        weights = model_path(detector.get('weights'))
+        if weights is None:
+            weights = Path(field('로컬 YOLO 가중치 경로','')).expanduser().resolve()
         if not weights.is_file():
             raise ValueError('가중치 파일이 없습니다.')
-        workspace = field('작업 범위 xmin,xmax,ymin,ymax,zmin,zmax',','.join(map(str,worker.get('workspace',[]))))
+        saved_workspace = worker.get('workspace')
+        workspace = ','.join(map(str,saved_workspace)) if saved_workspace else os.environ.get('WORKER_WORKSPACE','')
+        if not workspace:
+            workspace = field('작업 범위 xmin,xmax,ymin,ymax,zmin,zmax','')
         values = [float(x) for x in workspace.split(',')]
         import math
         if len(values)!=6 or not all(math.isfinite(x) for x in values) or any(values[i]>=values[i+1] for i in (0,2,4)):
             raise ValueError('작업 범위의 숫자 6개를 확인하세요.')
-        device = field('추론 장치',detector.get('device','cpu'))
+        device = inference_device()
+        self.show(f'가중치: {weights.name} / 자동 추론 장치: {device}')
         base = worker.get('base_frame','base_link')
         topics = dict(color_topic=camera.get('color_topic','/camera/color/image_raw'),
             depth_topic=camera.get('depth_topic','/camera/aligned_depth_to_color/image_raw'),
@@ -331,6 +350,30 @@ class TerminalMenu:
         self.stack.stop()
         return True
 
+    def disconnected(self):
+        """Keep Docker PID 1/hold publishers alive until shutdown is confirmed.
+
+        Failed/unknown hardware cannot be acknowledged through closed stdin.
+        An operator must inspect the robot before explicitly stopping Docker.
+        """
+        requested = set()
+        self.show('입력 연결 소실: 컨테이너와 작업 서버를 유지하며 상태를 확인합니다.')
+        while True:
+            try:
+                self.resolve_pending()
+                if self.task and self.task not in requested:
+                    self.backend.request('cancel_task',task_id=self.task)
+                    requested.add(self.task)
+                if self.idle() and self.state!='FAILED':
+                    self.stack.stop()
+                    return 2
+            except (Exception,KeyboardInterrupt) as exc:
+                self.show('종료 보류: '+str(exc))
+            try:
+                time.sleep(5)
+            except KeyboardInterrupt:
+                self.show('종료 보류: 실제 장비 정지를 먼저 확인하세요.')
+
     def run(self):
         while True:
             try:
@@ -352,7 +395,7 @@ class TerminalMenu:
                 elif option=='5':
                     self.cancel()
                 elif option=='6':
-                    self.command('worker_cli','doctor','--config',self.config)
+                    self.command('worker_cli','doctor','--config',self.runtime_profile())
                     self.show('연결 검사 통과. 움직임이나 집기 성공을 확인한 것은 아닙니다.')
                 else:
                     self.show('메뉴 번호를 선택하세요.')
@@ -362,6 +405,8 @@ class TerminalMenu:
                 # Never kill a possibly moving controller because stdin disappeared.
                 if not self.exit():
                     self.show('입력 연결이 끊겼습니다. 작업 서버를 유지합니다. 장비와 로그를 확인하세요.')
+                    if os.environ.get('WORKER_IN_CONTAINER')=='1':
+                        return self.disconnected()
                 return 2
             except Exception as exc:
                 self.show('확인 필요: '+str(exc))
@@ -371,6 +416,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config',type=Path,required=True)
     args = parser.parse_args()
+    if os.environ.get('WORKER_IN_CONTAINER')=='1':
+        def terminate(signum,frame):
+            raise KeyboardInterrupt()
+        signal.signal(signal.SIGTERM,terminate)
     if sys.platform!='linux' or not sys.stdin.isatty():
         parser.error('Ubuntu의 대화형 터미널에서 실행하세요.')
     backend = RosBackend()

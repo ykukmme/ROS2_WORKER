@@ -2,6 +2,7 @@ from pathlib import Path
 import unittest
 import tempfile
 import yaml
+from unittest.mock import patch
 from ai_worker_sorting.terminal_menu import TerminalMenu
 
 
@@ -61,7 +62,8 @@ class MenuTests(unittest.TestCase):
                     Path(args[args.index('--output')+1]).write_text('model: fixture')
                 return ''
             menu.command = command
-            menu.wizard()
+            with patch.dict('os.environ',{'WORKER_DEFAULT_WEIGHTS':''}),patch('ai_worker_sorting.terminal_menu.inference_device',return_value='cpu'):
+                menu.wizard()
             self.assertEqual(calls,['scan','grasp','grasp','write'])
             self.assertTrue(menu.config.exists())
 

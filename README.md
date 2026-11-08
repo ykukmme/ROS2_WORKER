@@ -4,7 +4,8 @@ ROBOTIS AI WORKER용 ROS2 물건 분류 프로토타입.
 YOLO가 구분한 두 종류를 색 테이프 구역에 자동 배정하고 같은 종류를 같은 구역에 놓도록 구성한다.
 VLA/VLM은 사용하지 않는다.
 
-**연결 PC에서 Git으로 설치·실행하려면 [DEPLOYMENT.md](DEPLOYMENT.md)를 따른다.**
+**Ubuntu PC에서는 [Docker 실행 가이드](DOCKER.md)를 기본으로 사용한다.**
+호스트에 직접 ROS2/Python 환경을 설치하는 방식은 [DEPLOYMENT.md](DEPLOYMENT.md)를 따른다.
 공개 저장소이므로 Ubuntu에서 GitHub 로그인·토큰·SSH 키 없이 내려받고 업데이트할 수 있다.
 실제 RGB-D·YOLO·ROBOTIS MoveL·그리퍼 피드백을 연결하는 실행 코드를 포함한다.
 실물 장비 접속 없이 컨트롤러 에뮬레이터로 검증했으므로 카메라 보정과 동작은 현장에서 확인해야 한다.
@@ -18,18 +19,18 @@ VLA/VLM은 사용하지 않는다.
 
 ## 연결 PC에서 내려받기
 
-로봇과 통신하는 Ubuntu/ROS2 PC의 Bash에서 실행한다. ROS2 배포판·네트워크 설정을 로봇과 맞춘다.
-Windows PC라면 로봇의 기존 Linux 개발 컨테이너에 SSH 접속해 같은 절차를 실행할 수도 있다.
+Docker 명령은 Docker Engine이 설치된 Ubuntu 호스트에서 실행한다. ROS2 배포판·네트워크 설정을 로봇과 맞춘다.
+기존 로봇 개발 컨테이너 안에서 실행할 때는 Docker를 중첩 실행하지 말고 [native 설치 안내](DEPLOYMENT.md)를 따른다.
 
 ```bash
 git clone https://github.com/ykukmme/ROS2_WORKER.git
 cd ROS2_WORKER
-# 로봇에서 사용하는 ROS2 환경을 먼저 source한 상태여야 한다.
-bash scripts/worker.sh build
-bash scripts/worker.sh menu
+bash scripts/docker_worker.sh build
+bash scripts/docker_worker.sh menu
 ```
 
-기존 로봇 패키지를 덮어쓰거나 OS/CUDA/PyTorch를 자동 업그레이드하지 않는다.
+Docker 이미지에 ROS2·YOLO·기본 가중치·코드가 포함된다. 가중치 경로와 추론 장치는 자동 선택한다.
+작업 범위는 기존 설정을 재사용하며, 없으면 최초 한 번 입력한다. 기존 로봇 패키지나 호스트 CUDA를 교체하지 않는다.
 설정 생성 → 연결 진단 → 실행 → 작업 시작 → Git 업데이트 명령은 [DEPLOYMENT.md](DEPLOYMENT.md)에 있다.
 **평소 사용은 [터미널 메뉴 안내](TERMINAL_MENU.md)를 따른다.** 메뉴가 인식 노드·설정·작업 ID를 관리한다.
 AI WORKER에는 공식 제어기·카메라가 실행 중이어야 한다. 필요하면 메뉴의 `6 연결 검사`를 사용한다.
@@ -65,7 +66,7 @@ ros2 service call /worker/start_task ai_worker_interfaces/srv/StartTask "{sessio
 
 ## 검증
 
-- Docker ROS2 Humble/Python 3.10 단위 테스트 63개.
+- Docker ROS2 Humble/Python 3.10 단위 테스트 68개.
 - Docker ROS2 Humble/Python 3.10에서 패키지 2개 빌드와 서비스 통합 시나리오 18개.
 - 실제 노트북 웹캠 → ROS2 → YOLO 영상 연결 검증.
 - 공식 MoveL·그리퍼 메시지와 PC 실행 도구·메뉴 백엔드로 13개 시나리오 검증(제어기 에뮬레이터).

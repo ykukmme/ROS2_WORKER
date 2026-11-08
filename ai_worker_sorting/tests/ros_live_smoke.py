@@ -239,7 +239,7 @@ def main():
             settings = yaml.safe_load(profile.read_text())['worker_service']['ros__parameters']
             assert settings['cartesian_speed']==.02 and settings['move_duration']==5.
             result = subprocess.run(['bash',str(Path(__file__).resolve().parents[2]/'scripts/worker.sh'),'doctor'],
-                env=dict(os.environ,WORKER_CONFIG=str(profile),WORKER_WS='/tmp/ros2_worker_release_ws',
+                env=dict(os.environ,WORKER_CONFIG=str(profile),WORKER_WS=os.environ.get('WORKER_TEST_WS','/tmp/ros2_worker_release_ws'),
                          WORKER_PYTHON=sys.executable),capture_output=True,text=True,timeout=25)
             assert result.returncode==0,(result.stdout,result.stderr)
             assert json.loads(result.stdout)['motion_commands_sent'] is False

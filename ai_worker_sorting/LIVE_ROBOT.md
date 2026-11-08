@@ -224,7 +224,7 @@ ros2 service call /worker/start_task ai_worker_interfaces/srv/StartTask \
 
 ## 검증 기록
 
-- 단위 테스트 63개.
+- 단위 테스트 68개.
 - 기존 분류·서비스 ROS2 시나리오 18개.
 - 공식 `robotis_interfaces` 1.3.0 API와 PC 실행 도구·메뉴 백엔드로 13개 시나리오.
 - 모델 기반 길이·카메라 크기 추정·무명령 교시·종류별 집기 설정 생성 6개 시나리오.
