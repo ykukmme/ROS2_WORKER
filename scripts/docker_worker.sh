@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
-export WORKER_ROS_DISTRO="${WORKER_ROS_DISTRO:-${ROS_DISTRO:-humble}}"
+export WORKER_ROS_DISTRO="${WORKER_ROS_DISTRO:-jazzy}"
 case "$WORKER_ROS_DISTRO" in humble|jazzy) ;; *) printf 'Supported ROS2 distributions: humble, jazzy\n' >&2; exit 2 ;; esac
 args=(-f compose.yaml)
 if [[ "${WORKER_GPU:-0}" == 1 ]]; then
@@ -14,7 +14,7 @@ case "${1:-menu}" in
   export)
     image="ros2-worker:$WORKER_ROS_DISTRO"
     docker image inspect "$image" >/dev/null
-    destination="${2:-dist/ros2-worker}"
+    destination="${2:-dist/ros2-worker-$WORKER_ROS_DISTRO}"
     mkdir -p -- "$destination"
     destination="$(cd -- "$destination" && pwd)"
     cp scripts/run_worker.sh "$destination/worker.sh"

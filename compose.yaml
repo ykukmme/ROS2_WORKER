@@ -1,10 +1,10 @@
 services:
   worker:
-    image: ros2-worker:${WORKER_ROS_DISTRO:-humble}
+    image: ros2-worker:${WORKER_ROS_DISTRO:-jazzy}
     build:
       context: .
       args:
-        ROS_DISTRO: ${WORKER_ROS_DISTRO:-humble}
+        ROS_DISTRO: ${WORKER_ROS_DISTRO:-jazzy}
         TORCH_INDEX_URL: ${WORKER_TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
     network_mode: host
     ipc: host
@@ -15,7 +15,6 @@ services:
     environment:
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
       RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
-      ROS_LOCALHOST_ONLY: "0"
       WORKER_DEVICE: ${WORKER_DEVICE:-auto}
       WORKER_WORKSPACE: ${WORKER_WORKSPACE:-}
       WORKER_ROBOT_DESCRIPTION_NODE: ${WORKER_ROBOT_DESCRIPTION_NODE:-/robot_state_publisher}

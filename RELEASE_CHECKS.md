@@ -1,5 +1,17 @@
 # 최초 공개 배포 점검 — 2026-11-03
 
+## Jazzy 기본 배포 전환 — 2026-11-10
+
+- 기본 이미지·Compose·실행기·배포 검증을 Jazzy로 통일했다. 호스트 `ROS_DISTRO=humble`은 기본 이미지 선택에 영향을 주지 않는다.
+- Ubuntu 24.04 / Python 3.12.3 / amd64 / CPU 이미지 실제 빌드와 단위 테스트 68개 통과.
+- Jazzy의 콜백 서명 검사에서 실패하던 교시 도구의 `deque.append` 직접 등록을 Python 콜백으로 감쌌다. 실제 ROS2 교시 통합 검증 6개 통과.
+- 자동 분류·작업 서비스, 공식 MoveL/raw 그리퍼 메시지 경로 13개 시나리오를 격리된 제어기 에뮬레이터에서 검증했다.
+- 네트워크 없는 이미지에서 내장 YOLO 추론과 TorchVision NMS 연산 통과. ROS2 Jazzy·Python 3.12.3 진단 출력을 추가했다.
+- 지연되던 Ubuntu 패키지 다운로드를 HTTPS로 전환했다. Jazzy에서 폐기 예정인 `ROS_LOCALHOST_ONLY` 강제 설정을 제거하고 기본 DDS 탐색을 사용한다.
+- 배포 폴더는 `dist/ros2-worker-jazzy`다. 체크섬·이미지 로드·볼륨 유지/이전·덮어쓰기 거부·대화형 메뉴 실행/종료를 검증했다.
+- 최종 배포에는 기존 현장 설정·로그를 넣지 않는다. 기존 `ros2-worker-data` 볼륨은 유지된다.
+- Bash 문법·Compose CPU/GPU 설정·수정 Python의 fatal Flake8 검사 통과. GPU 및 실제 AI WORKER 네트워크·집기는 미검증이다.
+
 ## 공용 PC 이미지 배포 — 2026-11-10
 
 - 호스트 `worker-data` 바인드 대신 Docker 전용 볼륨 `ros2-worker-data`를 사용한다. 컨테이너 UID/GID는 1000으로 고정한다.

@@ -232,7 +232,8 @@ def main():
     data = {}
     depths = deque(maxlen=60)
     sub = node.create_subscription(CameraInfo,'/worker_camera/camera_info',lambda m:data.update(info=m),qos_profile_sensor_data)
-    depth_sub = node.create_subscription(Image,'/worker_camera/depth_rect',depths.append,qos_profile_sensor_data)
+    # Jazzy inspects callback signatures; deque.append has no Python signature.
+    depth_sub = node.create_subscription(Image,'/worker_camera/depth_rect',lambda msg:depths.append(msg),qos_profile_sensor_data)
     try:
         if args.stage=='scan':
             cfg = dict(base_frame=args.base_frame,controller_node=args.controller_node,tool_link='',

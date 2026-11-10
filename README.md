@@ -1,6 +1,7 @@
 # ROS2_WORKER
 
 ROBOTIS AI WORKER용 ROS2 물건 분류 프로토타입.
+기본 Docker 배포는 ROS2 Jazzy / Ubuntu 24.04 / CPU용이다.
 YOLO가 구분한 두 종류를 색 테이프 구역에 자동 배정하고 같은 종류를 같은 구역에 놓도록 구성한다.
 VLA/VLM은 사용하지 않는다.
 
@@ -31,7 +32,7 @@ bash scripts/docker_worker.sh build
 bash scripts/docker_worker.sh export
 ```
 
-`dist/ros2-worker` 폴더 전체를 공용 PC에 옮기고 `bash worker.sh`로 실행한다.
+`dist/ros2-worker-jazzy` 폴더 전체를 공용 PC에 옮기고 `bash worker.sh`로 실행한다.
 이미지 파일은 Git에 올리지 않는다. 현재 공개 이미지 레지스트리에는 게시하지 않았으며 제작 PC에서 내보낸다.
 같은 PC에서 사용할 때는 `bash scripts/docker_worker.sh menu`로 실행해도 된다.
 Docker 이미지에 ROS2·YOLO·기본 가중치·코드가 포함된다. 설정·로그는 Docker 전용 볼륨에 보관한다.
@@ -72,8 +73,8 @@ ros2 service call /worker/start_task ai_worker_interfaces/srv/StartTask "{sessio
 
 ## 검증
 
-- Docker ROS2 Humble/Python 3.10 단위 테스트 68개.
-- Docker ROS2 Humble/Python 3.10에서 패키지 2개 빌드와 서비스 통합 시나리오 18개.
+- Docker ROS2 Jazzy/Python 3.12 이미지 빌드와 단위 테스트 68개.
+- Docker ROS2 Jazzy에서 패키지 2개 빌드와 자동 분류·작업 서비스 통합 검증.
 - 실제 노트북 웹캠 → ROS2 → YOLO 영상 연결 검증.
 - 공식 MoveL·그리퍼 메시지와 PC 실행 도구·메뉴 백엔드로 13개 시나리오 검증(제어기 에뮬레이터).
 - 모델 기반 그리퍼 길이·카메라 스캔·자세 교시·설정 생성 6개 시나리오 검증.

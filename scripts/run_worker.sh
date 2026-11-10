@@ -6,7 +6,7 @@ image="${WORKER_IMAGE:-}"
 if [[ -z "$image" && -f "$bundle_dir/image.txt" ]]; then
   IFS= read -r image < "$bundle_dir/image.txt"
 fi
-image="${image:-ros2-worker:${WORKER_ROS_DISTRO:-${ROS_DISTRO:-humble}}}"
+image="${image:-ros2-worker:${WORKER_ROS_DISTRO:-jazzy}}"
 volume="${WORKER_VOLUME:-ros2-worker-data}"
 if [[ ! "$volume" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]]; then
   printf 'Invalid WORKER_VOLUME: use a Docker volume name, not a path.\n' >&2
@@ -35,7 +35,7 @@ args=(run --rm --pull never --name "${WORKER_CONTAINER:-ros2-worker}" --stop-tim
       --mount "type=volume,src=$volume,dst=/data"
       -e "ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}"
       -e "RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
-      -e ROS_LOCALHOST_ONLY=0 -e "WORKER_DEVICE=${WORKER_DEVICE:-auto}"
+      -e "WORKER_DEVICE=${WORKER_DEVICE:-auto}"
       -e "WORKER_WORKSPACE=${WORKER_WORKSPACE:-}"
       -e "WORKER_ROBOT_DESCRIPTION_NODE=${WORKER_ROBOT_DESCRIPTION_NODE:-/robot_state_publisher}")
 if [[ "${WORKER_GPU:-0}" == 1 ]]; then args+=(--gpus all); fi
@@ -46,7 +46,7 @@ case "$command" in
     printf 'IMAGE=%s DOMAIN=%s DATA=%s\n' "$image" "${ROS_DOMAIN_ID:-0}" "$volume"
     exec docker "${args[@]}" "$image" menu ;;
   check)
-    exec docker "${args[@]}" "$image" /opt/worker_venv/bin/python -c 'import torch,ultralytics,rclpy,vision_msgs.msg,robotis_interfaces.msg; from pathlib import Path; from ai_worker_sorting.runtime_defaults import inference_device; assert Path("/opt/worker/models/yolo26n.pt").is_file(); print("Dependencies/model OK; device:",inference_device())' ;;
+    exec docker "${args[@]}" "$image" /opt/worker_venv/bin/python -c 'import os,sys,torch,ultralytics,rclpy,vision_msgs.msg,robotis_interfaces.msg; from pathlib import Path; from ai_worker_sorting.runtime_defaults import inference_device; assert Path("/opt/worker/models/yolo26n.pt").is_file(); print("ROS2:",os.environ["ROS_DISTRO"],"Python:",sys.version.split()[0],"Dependencies/model OK; device:",inference_device())' ;;
   import-data)
     [[ -d "${2:-}" ]] || { printf 'Provide the existing worker-data directory.\n' >&2; exit 2; }
     source_dir="$(cd -- "$2" && pwd)"

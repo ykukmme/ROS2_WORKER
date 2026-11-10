@@ -1,9 +1,13 @@
-ARG ROS_DISTRO=humble
+ARG ROS_DISTRO=jazzy
 FROM ros:${ROS_DISTRO}-ros-base
 ARG ROS_DISTRO
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN for source_file in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list; do \
+      if [[ -f "$source_file" ]]; then \
+        sed -i -E 's@http://(archive|security)\.ubuntu\.com/ubuntu@https://\1.ubuntu.com/ubuntu@g' "$source_file"; \
+      fi; \
+    done && apt-get update && apt-get install -y --no-install-recommends \
     git curl ca-certificates build-essential python3-colcon-common-extensions python3-venv \
     python3-numpy python3-opencv python3-yaml libgl1 libglib2.0-0 \
     ros-${ROS_DISTRO}-vision-msgs ros-${ROS_DISTRO}-cv-bridge \

@@ -1,7 +1,8 @@
 # 공용 Ubuntu PC에서 실행
 
 관리자가 Docker Engine 사용 권한을 제공해야 한다. Git·ROS2·Python·Compose 설치는 필요 없다.
-Ubuntu x86_64 / ROS2 Humble / CPU 기본 배포다. 로봇 배포판과 다른 이미지는 사용하지 않는다.
+컨테이너는 Ubuntu 24.04 x86_64 / ROS2 Jazzy / Python 3.12 / CPU 기본 배포다.
+로봇 배포판과 다른 이미지는 사용하지 않는다.
 AI WORKER의 공식 제어기·카메라는 로봇 측에서 기존 방식으로 실행한다.
 
 ## 실행
@@ -47,13 +48,15 @@ bash worker.sh import-data /기존/ROS2_WORKER/worker-data
 ## 새 이미지로 업데이트
 
 작업 종료·실제 장비 정지·메뉴 종료 후 새 배포 폴더에서:
+이전 터미널에 `WORKER_IMAGE`를 지정했다면 먼저 `unset WORKER_IMAGE`로 해제한다.
 
 ```bash
 bash worker.sh load
 bash worker.sh
 ```
 
+이전 Humble 배포 폴더 대신 Jazzy 배포 폴더 전체를 사용한다. `image.txt`가 `ros2-worker:jazzy`인지 확인한다.
 기존 볼륨 설정은 유지된다. 의존성 확인만 하려면 `bash worker.sh check`를 사용한다.
 프로그램 종료가 실제 로봇 정지를 대신하지 않는다. 작업 중 `docker stop/kill`을 사용하지 않는다.
 GPU 배포 이미지는 호스트 NVIDIA 드라이버·Container Toolkit이 추가로 필요하고 `WORKER_GPU=1`로 실행한다.
-GPU/Jazzy·실물 네트워크와 집기는 현장 검증이 필요하다.
+GPU·실물 네트워크와 집기는 현장 검증이 필요하다.

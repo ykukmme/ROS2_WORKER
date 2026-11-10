@@ -3,7 +3,8 @@
 코드·ROS2·공식 인터페이스·형상 자산·YOLO 라이브러리·기본 `yolo26n.pt`를 이미지에 포함한다.
 공용 실행 PC에는 Docker Engine과 Bash만 필요하다. 호스트에 ROS2·Python·Git·Compose를 따로 설치할 필요는 없다.
 이미지를 만드는 PC에는 Git과 Docker Engine/Compose 플러그인이 필요하다.
-기본 빌드는 Ubuntu x86_64 PC/ROS2 Humble/CPU용이다. Jetson은 기존 JetPack 공식 환경을 사용해야 한다.
+기본 이미지는 Ubuntu 24.04 x86_64 / ROS2 Jazzy / Python 3.12 / CPU용이다.
+Jetson은 기존 JetPack 공식 환경을 사용해야 한다.
 
 ## 공용 PC에 배포하기
 
@@ -16,7 +17,7 @@ bash scripts/docker_worker.sh build
 bash scripts/docker_worker.sh export
 ```
 
-`dist/ros2-worker` 폴더 전체를 USB 또는 파일 복사로 공용 PC에 전달한다.
+`dist/ros2-worker-jazzy` 폴더 전체를 USB 또는 파일 복사로 공용 PC에 전달한다.
 이미지·실행 스크립트·이미지 태그·체크섬·사용 안내만 포함하며 설정·교시·로그는 포함하지 않는다.
 배포 폴더 이름이나 위치는 바꿔도 된다. 공개 이미지 레지스트리에는 아직 게시하지 않았다.
 
@@ -33,15 +34,18 @@ bash worker.sh
 ## 로봇 연결과 소스에서 직접 실행
 
 로봇의 공식 bringup·MoveL 제어기·카메라는 기존 방식으로 실행한다.
-로봇과 같은 ROS2 배포판·domain·middleware를 사용한다. 로봇이 Humble, domain 0, Fast DDS라면 기본값을 사용할 수 있다.
+로봇과 같은 ROS2 배포판·domain·middleware를 사용한다. 로봇이 Jazzy, domain 0, Fast DDS라면 기본값을 사용할 수 있다.
 다르면 빌드·실행 전에 실제 값을 적용한다. 예:
 
 ```bash
-# 장비가 Jazzy인 경우에만:
+# 이전 터미널에서 Humble을 지정했다면 Jazzy로 변경:
 export WORKER_ROS_DISTRO=jazzy
 # domain도 로봇 값이 0과 다를 때만 실제 값으로 지정:
 export ROS_DOMAIN_ID=실제_로봇_도메인_숫자
 ```
+
+호스트의 `ROS_DISTRO`가 Humble이어도 기본 이미지는 Jazzy로 만든다.
+다른 배포판은 `WORKER_ROS_DISTRO`를 명시한 경우에만 선택한다.
 
 Ubuntu Bash에서:
 
@@ -121,7 +125,7 @@ native 설정은 `config/live.local.yaml`과 `models/`를 가진 폴더로 준�
 기존 커스텀 모델이 없을 때 기본 모델로 몰래 교체하지 않고 오류로 알린다.
 커스텀 모델의 컨테이너 경로는 `/data/models/best.pt`다.
 볼륨의 파일을 직접 편집·교체해야 한다면 로봇 정지·메뉴 종료 후
-`docker run --rm -it --mount type=volume,src=ros2-worker-data,dst=/data --entrypoint bash ros2-worker:humble`로 연다.
+`docker run --rm -it --mount type=volume,src=ros2-worker-data,dst=/data --entrypoint bash ros2-worker:jazzy`로 연다.
 
 이미지에는 `robotis_interfaces` 1.3.0과 `ffw_description` 2.2.6 자산이 고정 리비전으로 포함된다.
 실제 로봇의 모델·TCP가 해당 자산과 일치해야 한다. 다른 패키지/형상이면 올바른 자산을 추가해야 한다.
@@ -158,11 +162,13 @@ bash worker.sh
 
 ```bash
 git pull
+export WORKER_ROS_DISTRO=jazzy
 bash scripts/docker_worker.sh build
 bash scripts/docker_worker.sh export
 ```
 
 소스 경로에서 의존성과 내장 모델만 확인하려면 `bash scripts/docker_worker.sh check`를 사용한다. 로봇 명령은 보내지 않는다.
+진단 출력의 `ROS2: jazzy`와 `Python: 3.12...`로 컨테이너 버전을 확인할 수 있다.
 Linux host network/IPC를 사용하지만 domain·middleware·방화벽·DDS/Zenoh 설정까지 자동 해결되지는 않는다.
 기본 Fast DDS 또는 Cyclone DDS를 사용한다. Zenoh·DDS 설정 파일이 필요한 장비는 해당 런타임/파일을 별도로 맞춰야 한다.
 배포판·모델이 다른 실제 장비와의 네트워크 및 실물 집기는 현장 확인이 필요하다.

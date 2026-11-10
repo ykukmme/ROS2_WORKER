@@ -2,7 +2,7 @@
 # Integration checks against the real Docker Engine; sends no robot commands.
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
-export WORKER_IMAGE="${WORKER_IMAGE:-ros2-worker:humble}"
+export WORKER_IMAGE="${WORKER_IMAGE:-ros2-worker:${WORKER_ROS_DISTRO:-jazzy}}"
 export WORKER_CONTAINER="ros2-worker-test-$$"
 export WORKER_VOLUME="ros2-worker-test-$$"
 export ROS_DOMAIN_ID=88

@@ -13,14 +13,14 @@
 | 연결 Ubuntu PC | 이 저장소의 메뉴·인식·분류 실행 |
 
 장비와 같은 ROS2 배포판 및 호환 ROBOTIS 인터페이스가 준비돼 있어야 한다.
-이 문서는 ROS2 설치 자체나 카메라 외부 보정을 대신하지 않는다. 개발 검증은 Humble에서 했다.
-장비가 Jazzy이면 해당 환경에서 빌드한다. 로봇의 기존 배포판을 바꾸지 않는다.
+이 문서는 ROS2 설치 자체나 카메라 외부 보정을 대신하지 않는다. 기본 실행 기준은 Jazzy다.
+로봇의 기존 배포판을 바꾸지 않고 같은 환경에서 빌드한다. 검증 기록은 [RELEASE_CHECKS.md](RELEASE_CHECKS.md)를 따른다.
 
 PC 터미널에서 ROS2 환경을 적용한다:
 
 ```bash
-# Humble 예시. 장비가 Jazzy라면 humble을 jazzy로 바꾼다.
-source /opt/ros/humble/setup.bash
+# ROS2 Jazzy 환경:
+source /opt/ros/jazzy/setup.bash
 # ROBOTIS 인터페이스가 별도 workspace에 있으면 해당 install/setup.bash도 source
 ```
 
@@ -151,8 +151,8 @@ RH-P12-RN 형상·장착 위치·TCP가 URDF·TF에 정확히 반영돼 있다�
 새 터미널에서 최초 실행과 같은 ROS2/ROBOTIS·통신·Python 환경을 적용한 뒤:
 
 ```bash
-# Humble 예시. 장비의 배포판으로 바꾼다.
-source /opt/ros/humble/setup.bash
+# ROS2 Jazzy 환경:
+source /opt/ros/jazzy/setup.bash
 # 필요한 ROBOTIS overlay와 WORKER_PYTHON도 처음과 같게 적용
 cd "$HOME/ROS2_WORKER"
 bash scripts/worker.sh menu
