@@ -1,5 +1,17 @@
 # 최초 공개 배포 점검 — 2026-11-03
 
+## 공용 PC 이미지 배포 — 2026-11-10
+
+- 호스트 `worker-data` 바인드 대신 Docker 전용 볼륨 `ros2-worker-data`를 사용한다. 컨테이너 UID/GID는 1000으로 고정한다.
+- Compose·Git·호스트 ROS2/Python 없이 실행하는 독립 `worker.sh`와 `export` 배포 폴더 생성을 추가했다.
+- 배포에는 이미지·실행 스크립트·태그·SHA256 체크섬·현장 안내만 포함한다. 현장 설정·교시·로그는 내보내지 않는다.
+- 이미지 빌드 중 생긴 YOLO 설정을 `/data`에서 제거해 새 볼륨을 오염시키지 않는다.
+- WSL Ubuntu/Docker Linux Engine에서 Humble CPU 이미지 재빌드·약 1GB 이미지 내보내기·체크섬 검사·로드를 검증했다.
+- 실제 전용 볼륨의 비루트 쓰기·컨테이너 삭제 후 유지, 기존 폴더 이전·덮어쓰기 거부, 호스트 경로를 볼륨명으로 사용하는 오류 차단을 검증했다.
+- 배포 폴더의 의존성 검사·대화형 메뉴 실행/종료 및 이미지가 없다는 조건에서의 자동 로드를 검증했다.
+- 최종 이미지 단위 테스트 68개 통과. 테스트는 로봇 명령을 보내지 않는다. GPU/Jazzy·실물 네트워크/집기는 미검증이다.
+- 재검증: `bash scripts/tests/docker_distribution_smoke.sh dist/ros2-worker` (Docker·Ubuntu의 `script` 도구 필요).
+
 ## Docker 배포·입력 자동화 — 2026-11-08
 
 - ROS2·인터페이스·ffw_description 자산·코드·CPU PyTorch·Ultralytics·기본 YOLO26n 가중치를 이미지에 포함했다.

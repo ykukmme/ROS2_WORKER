@@ -1,6 +1,7 @@
 # Ubuntu 터미널 메뉴
 
-Docker 사용자는 [DOCKER.md](DOCKER.md)의 `bash scripts/docker_worker.sh menu`로 연다.
+공용 PC의 Docker 사용자는 배포 폴더에서 `bash worker.sh`로 연다. [공용 PC 안내](docker/SHARED_PC.md)를 따른다.
+소스에서 실행할 때는 [DOCKER.md](DOCKER.md)의 `bash scripts/docker_worker.sh menu`로 연다.
 아래 `worker.sh` 명령은 호스트에 직접 설치한 경우의 실행 방법이다.
 
 AI WORKER에서 공식 로봇 구동·MoveL 제어기·카메라를 실행하고, 연결 PC에서 같은 ROS2 환경을 source한다.

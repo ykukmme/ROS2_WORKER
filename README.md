@@ -4,7 +4,9 @@ ROBOTIS AI WORKER용 ROS2 물건 분류 프로토타입.
 YOLO가 구분한 두 종류를 색 테이프 구역에 자동 배정하고 같은 종류를 같은 구역에 놓도록 구성한다.
 VLA/VLM은 사용하지 않는다.
 
-**Ubuntu PC에서는 [Docker 실행 가이드](DOCKER.md)를 기본으로 사용한다.**
+**공용 Ubuntu PC에서는 [이미지 배포 가이드](docker/SHARED_PC.md)를 기본으로 사용한다.**
+배포 폴더의 `bash worker.sh`로 실행한다. Docker Engine만 필요하며 Git·ROS2·Python·Compose 설치는 생략한다.
+이미지 제작 또는 소스로 설치하려면 [Docker 실행 가이드](DOCKER.md)를 따른다.
 호스트에 직접 ROS2/Python 환경을 설치하는 방식은 [DEPLOYMENT.md](DEPLOYMENT.md)를 따른다.
 공개 저장소이므로 Ubuntu에서 GitHub 로그인·토큰·SSH 키 없이 내려받고 업데이트할 수 있다.
 실제 RGB-D·YOLO·ROBOTIS MoveL·그리퍼 피드백을 연결하는 실행 코드를 포함한다.
@@ -17,7 +19,7 @@ VLA/VLM은 사용하지 않는다.
 | `ai_worker_sorting` | YOLO 영상 연결, RGB-D 좌표 계산, 구역 검출, 작업 서버 |
 | `scripts` | 기존 ROS2 환경에서 독립 빌드하는 도구 |
 
-## 연결 PC에서 내려받기
+## 이미지 제작 PC에서 내려받기
 
 Docker 명령은 Docker Engine이 설치된 Ubuntu 호스트에서 실행한다. ROS2 배포판·네트워크 설정을 로봇과 맞춘다.
 기존 로봇 개발 컨테이너 안에서 실행할 때는 Docker를 중첩 실행하지 말고 [native 설치 안내](DEPLOYMENT.md)를 따른다.
@@ -26,10 +28,14 @@ Docker 명령은 Docker Engine이 설치된 Ubuntu 호스트에서 실행한다.
 git clone https://github.com/ykukmme/ROS2_WORKER.git
 cd ROS2_WORKER
 bash scripts/docker_worker.sh build
-bash scripts/docker_worker.sh menu
+bash scripts/docker_worker.sh export
 ```
 
-Docker 이미지에 ROS2·YOLO·기본 가중치·코드가 포함된다. 가중치 경로와 추론 장치는 자동 선택한다.
+`dist/ros2-worker` 폴더 전체를 공용 PC에 옮기고 `bash worker.sh`로 실행한다.
+이미지 파일은 Git에 올리지 않는다. 현재 공개 이미지 레지스트리에는 게시하지 않았으며 제작 PC에서 내보낸다.
+같은 PC에서 사용할 때는 `bash scripts/docker_worker.sh menu`로 실행해도 된다.
+Docker 이미지에 ROS2·YOLO·기본 가중치·코드가 포함된다. 설정·로그는 Docker 전용 볼륨에 보관한다.
+가중치 경로와 추론 장치는 자동 선택한다.
 작업 범위는 기존 설정을 재사용하며, 없으면 최초 한 번 입력한다. 기존 로봇 패키지나 호스트 CUDA를 교체하지 않는다.
 설정 생성 → 연결 진단 → 실행 → 작업 시작 → Git 업데이트 명령은 [DEPLOYMENT.md](DEPLOYMENT.md)에 있다.
 **평소 사용은 [터미널 메뉴 안내](TERMINAL_MENU.md)를 따른다.** 메뉴가 인식 노드·설정·작업 ID를 관리한다.

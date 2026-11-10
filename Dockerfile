@@ -46,11 +46,13 @@ COPY ai_worker_interfaces ./ai_worker_interfaces
 COPY ai_worker_sorting ./ai_worker_sorting
 COPY scripts/build_ros2.sh scripts/worker.sh ./scripts/
 COPY docker/entrypoint.sh /opt/worker/entrypoint.sh
+# Do not seed new runtime volumes with settings generated during the build.
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && source /opt/vendor_ws/install/setup.bash && \
     bash scripts/build_ros2.sh /opt/worker_ws && \
     source /opt/worker_ws/install/ros2_worker/setup.bash && \
     /opt/worker_venv/bin/python -c 'import rclpy, cv_bridge, vision_msgs.msg, robotis_interfaces.msg, ultralytics; from ament_index_python.packages import get_package_share_directory; print(get_package_share_directory("ffw_description"))' && \
-    chmod +x /opt/worker/entrypoint.sh && mkdir -p /data && chmod 1777 /data
+    chmod +x /opt/worker/entrypoint.sh && \
+    rm -rf /data && mkdir -m 1777 /data
 USER 1000:1000
 ENTRYPOINT ["/opt/worker/entrypoint.sh"]
 CMD ["menu"]
