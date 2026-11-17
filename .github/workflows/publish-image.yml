@@ -50,12 +50,15 @@ jobs:
           set -euo pipefail
           bash scripts/tests/registry_launcher_smoke.sh
           WORKER_IMAGE="$IMAGE:sha-$GITHUB_SHA" bash scripts/tests/docker_distribution_smoke.sh
-          docker run --rm --network none -e ROS_DOMAIN_ID=88 -e WORKER_TEST_WS=/opt/worker_ws \
-            "$IMAGE:sha-$GITHUB_SHA" bash -ec '
-              "$WORKER_PYTHON" -m unittest discover -s /opt/worker/ai_worker_sorting/tests -q
-              "$WORKER_PYTHON" /opt/worker/ai_worker_sorting/tests/ros_live_smoke.py --weights /opt/worker/models/yolo26n.pt --output /tmp/live.json
-              "$WORKER_PYTHON" /opt/worker/ai_worker_sorting/tests/ros_teach_smoke.py --weights /opt/worker/models/yolo26n.pt --output /tmp/teach.json
-            '
+          docker run --rm --network none "$IMAGE:sha-$GITHUB_SHA" \
+            /opt/worker_venv/bin/python -m unittest discover -s /opt/worker/ai_worker_sorting/tests -q
+          # Each integration test gets fresh DDS/IPC state and room for RGB-D buffers.
+          for test in live teach; do
+            docker run --rm --network none --shm-size=512m -e ROS_DOMAIN_ID=88 -e WORKER_TEST_WS=/opt/worker_ws \
+              "$IMAGE:sha-$GITHUB_SHA" /opt/worker_venv/bin/python \
+              "/opt/worker/ai_worker_sorting/tests/ros_${test}_smoke.py" \
+              --weights /opt/worker/models/yolo26n.pt --output "/tmp/$test.json"
+          done
       - name: Publish tested image
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

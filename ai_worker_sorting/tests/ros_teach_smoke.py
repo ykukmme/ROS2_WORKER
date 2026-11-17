@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import cv2
 import yaml
 import rclpy
 from rclpy.parameter import Parameter
@@ -22,6 +23,7 @@ def main():
     parser.add_argument('--weights',required=True)
     parser.add_argument('--output',type=Path,required=True)
     args = parser.parse_args()
+    cv2.setNumThreads(1)
     rclpy.init(args=[])
     fixture = ControllerFixture()
     fixture.declare_parameter('robot_description','''<robot name="test_hand">

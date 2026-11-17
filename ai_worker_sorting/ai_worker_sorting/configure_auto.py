@@ -99,26 +99,25 @@ def scan(node,buffer,args,info,depths):
     if len(heights)!=8 or max(heights)-min(heights)>.015:
         raise ValueError('Both tape zones must lie on the same level tabletop')
     table = sum(heights)/len(heights)
-    objects = service(node,DetectObjects,'/vision/detect_objects')
-    fresh(node,objects.header)
-    if info is None or info.header.frame_id!=objects.header.frame_id:
-        raise ValueError('Matching rectified camera intrinsics unavailable')
-    fresh(node,info.header)
-    stamp = Time.from_msg(objects.header.stamp)
     deadline = time.monotonic()+1
-    while not buffer.can_transform(args.base_frame,objects.header.frame_id,stamp) and time.monotonic()<deadline:
+    while True:
+        # A detector can cache a frame acquired before this process subscribed.
+        # Request a newer observation instead of waiting forever for that old depth.
+        objects = service(node,DetectObjects,'/vision/detect_objects')
+        fresh(node,objects.header)
+        if info is None or info.header.frame_id!=objects.header.frame_id:
+            raise ValueError('Matching rectified camera intrinsics unavailable')
+        fresh(node,info.header)
+        stamp = Time.from_msg(objects.header.stamp)
+        candidates = [m for m in list(depths) if m.header.frame_id==objects.header.frame_id and
+            abs((m.header.stamp.sec-objects.header.stamp.sec)+(m.header.stamp.nanosec-objects.header.stamp.nanosec)/1e9)<=.06]
+        if candidates and buffer.can_transform(args.base_frame,objects.header.frame_id,stamp):
+            break
+        if time.monotonic()>=deadline:
+            raise ValueError('No synchronized complete depth image/camera TF for maximum object height')
         rclpy.spin_once(node,timeout_sec=.02)
     tf = buffer.lookup_transform(args.base_frame,objects.header.frame_id,stamp).transform
     t,q = tf.translation,tf.rotation
-    candidates = []
-    deadline = time.monotonic()+1
-    while not candidates and time.monotonic()<deadline:
-        candidates = [m for m in list(depths) if m.header.frame_id==objects.header.frame_id and
-            abs((m.header.stamp.sec-objects.header.stamp.sec)+(m.header.stamp.nanosec-objects.header.stamp.nanosec)/1e9)<=.06]
-        if not candidates:
-            rclpy.spin_once(node,timeout_sec=.02)
-    if not candidates:
-        raise ValueError('No synchronized complete depth image for maximum object height')
     depth = min(candidates,key=lambda m:abs((m.header.stamp.sec-objects.header.stamp.sec)*1e9+m.header.stamp.nanosec-objects.header.stamp.nanosec))
     fresh(node,depth.header)
     pixels = CvBridge().imgmsg_to_cv2(depth,desired_encoding='passthrough')
@@ -247,10 +246,10 @@ def main():
             raise RuntimeError('Stop the sorting worker before pose teaching; use only the camera calibration stack')
         if args.stage=='scan':
             deadline = time.monotonic()+5
-            while 'info' not in data and time.monotonic()<deadline:
+            while ('info' not in data or not depths) and time.monotonic()<deadline:
                 rclpy.spin_once(node,timeout_sec=.05)
-            if 'info' not in data:
-                raise ValueError('Rectified camera info unavailable')
+            if 'info' not in data or not depths:
+                raise ValueError('Rectified camera info/depth unavailable')
             info = data['info']
             args.source_roi = args.source_roi or [0.,0.,float(info.width),float(info.height)]
             if len(args.source_roi)!=4 or not 0<=args.source_roi[0]<args.source_roi[2]<=info.width or not 0<=args.source_roi[1]<args.source_roi[3]<=info.height:
