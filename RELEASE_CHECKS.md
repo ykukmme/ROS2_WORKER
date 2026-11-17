@@ -1,5 +1,13 @@
 # 최초 공개 배포 점검 — 2026-11-03
 
+## Docker 문서 통일 — 2026-11-17
+
+- 일반 설치·메뉴·실물 연결·서비스 문서를 Jazzy Docker 기준으로 정리했다.
+- 공용 PC의 `bash worker.sh`와 제작 PC의 `bash scripts/docker_worker.sh ...`를 구분하고 설정·로그 경로를 `/data` 기준으로 통일했다.
+- 호스트의 `WORKER_CONFIG`·`WORKER_ROBOT_URDF`가 일반 실행기에 전달되지 않는 점을 명시하고 고급 Docker 실행 예시로 안내한다.
+- 직접 설치·Windows/Humble·초기 프로토타입 문서는 `docs/archive/`에 보존했다. 현재 문서의 모의 데모는 격리된 Jazzy 컨테이너를 사용한다.
+- 실행 코드는 변경하지 않았다. 문서 20개·내부 링크/앵커 93개·Bash 명령 블록 27개와 서비스/launch 계약 검사를 통과했다.
+
 ## Jazzy 기본 배포 전환 — 2026-11-10
 
 - 기본 이미지·Compose·실행기·배포 검증을 Jazzy로 통일했다. 호스트 `ROS_DISTRO=humble`은 기본 이미지 선택에 영향을 주지 않는다.

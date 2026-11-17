@@ -1,29 +1,32 @@
 # ROS2_WORKER
 
-ROBOTIS AI WORKER용 ROS2 물건 분류 프로토타입.
-기본 Docker 배포는 ROS2 Jazzy / Ubuntu 24.04 / CPU용이다.
-YOLO가 구분한 두 종류를 색 테이프 구역에 자동 배정하고 같은 종류를 같은 구역에 놓도록 구성한다.
-VLA/VLM은 사용하지 않는다.
+ROBOTIS AI WORKER용 ROS2 물건 분류 프로그램.
+RGB-D와 YOLO로 두 종류를 인식하고, 색 테이프 구역에 같은 종류끼리 배치한다.
+기본 배포는 ROS2 Jazzy / Ubuntu 24.04 / Python 3.12 / x86_64 CPU다.
 
-**공용 Ubuntu PC에서는 [이미지 배포 가이드](docker/SHARED_PC.md)를 기본으로 사용한다.**
-배포 폴더의 `bash worker.sh`로 실행한다. Docker Engine만 필요하며 Git·ROS2·Python·Compose 설치는 생략한다.
-이미지 제작 또는 소스로 설치하려면 [Docker 실행 가이드](DOCKER.md)를 따른다.
-호스트에 직접 ROS2/Python 환경을 설치하는 방식은 [DEPLOYMENT.md](DEPLOYMENT.md)를 따른다.
-공개 저장소이므로 Ubuntu에서 GitHub 로그인·토큰·SSH 키 없이 내려받고 업데이트할 수 있다.
-실제 RGB-D·YOLO·ROBOTIS MoveL·그리퍼 피드백을 연결하는 실행 코드를 포함한다.
-실물 장비 접속 없이 컨트롤러 에뮬레이터로 검증했으므로 카메라 보정과 동작은 현장에서 확인해야 한다.
-일반 데모는 `dry_run: true`이며, 실물 launch는 별도 측정 설정을 요구한다.
+## 공용 PC에서 사용
 
-| 디렉터리 | 내용 |
-|---|---|
-| `ai_worker_interfaces` | 작업·취소·구역·자동 분류 ROS2 서비스/메시지 |
-| `ai_worker_sorting` | YOLO 영상 연결, RGB-D 좌표 계산, 구역 검출, 작업 서버 |
-| `scripts` | 기존 ROS2 환경에서 독립 빌드하는 도구 |
+PC에는 Docker Engine과 사용 권한만 준비한다. ROS2·Python·Git·Compose를 따로 설치할 필요는 없다.
+AI WORKER의 공식 제어기·카메라·좌표 보정은 로봇 측에서 준비한다.
+이미지가 포함된 배포 폴더에서:
 
-## 이미지 제작 PC에서 내려받기
+```bash
+bash worker.sh
+```
 
-Docker 명령은 Docker Engine이 설치된 Ubuntu 호스트에서 실행한다. ROS2 배포판·네트워크 설정을 로봇과 맞춘다.
-기존 로봇 개발 컨테이너 안에서 실행할 때는 Docker를 중첩 실행하지 말고 [native 설치 안내](DEPLOYMENT.md)를 따른다.
+이미지가 없으면 자동 등록 후 메뉴가 열린다.
+새 배포 폴더로 업데이트할 때는 `bash worker.sh load`를 먼저 실행한다.
+메뉴에서 `1 초기 설정` 후 `3 분류 시작`을 사용한다.
+작업 범위와 두 종류의 집기 자세는 최초 설정이 필요하다.
+가중치 경로와 추론 장치는 자동 선택한다.
+
+설정·교시·로그는 Docker 볼륨 `ros2-worker-data`에 유지된다.
+설정 경로는 컨테이너의 `/data/config/live.local.yaml`이다.
+자세한 절차는 [공용 PC 안내](docker/SHARED_PC.md)와 [터미널 메뉴](TERMINAL_MENU.md)를 따른다.
+
+## 이미지를 만드는 PC
+
+Git과 Docker Engine/Compose가 있는 Ubuntu 호스트에서:
 
 ```bash
 git clone https://github.com/ykukmme/ROS2_WORKER.git
@@ -32,60 +35,29 @@ bash scripts/docker_worker.sh build
 bash scripts/docker_worker.sh export
 ```
 
-`dist/ros2-worker-jazzy` 폴더 전체를 공용 PC에 옮기고 `bash worker.sh`로 실행한다.
-이미지 파일은 Git에 올리지 않는다. 현재 공개 이미지 레지스트리에는 게시하지 않았으며 제작 PC에서 내보낸다.
-같은 PC에서 사용할 때는 `bash scripts/docker_worker.sh menu`로 실행해도 된다.
-Docker 이미지에 ROS2·YOLO·기본 가중치·코드가 포함된다. 설정·로그는 Docker 전용 볼륨에 보관한다.
-가중치 경로와 추론 장치는 자동 선택한다.
-작업 범위는 기존 설정을 재사용하며, 없으면 최초 한 번 입력한다. 기존 로봇 패키지나 호스트 CUDA를 교체하지 않는다.
-설정 생성 → 연결 진단 → 실행 → 작업 시작 → Git 업데이트 명령은 [DEPLOYMENT.md](DEPLOYMENT.md)에 있다.
-**평소 사용은 [터미널 메뉴 안내](TERMINAL_MENU.md)를 따른다.** 메뉴가 인식 노드·설정·작업 ID를 관리한다.
-AI WORKER에는 공식 제어기·카메라가 실행 중이어야 한다. 필요하면 메뉴의 `6 연결 검사`를 사용한다.
-물건 크기는 카메라로, 그리퍼 길이는 정확한 URDF 모델로 계산한다. 두 종류별 집기 자세는 한 번씩 지정한다.
-
-## 모의 분류
-
-```bash
-export ROS_DOMAIN_ID=79
-ros2 launch ai_worker_sorting auto_sort.launch.py mock_mode:=true
-```
-
-같은 ROS2 환경·도메인의 다른 터미널:
-
-```bash
-ros2 service call /worker/prepare_auto_sort ai_worker_interfaces/srv/PrepareAutoSort '{}'
-ros2 service call /worker/start_task ai_worker_interfaces/srv/StartTask "{session_id: '응답의_세션_ID', max_objects: 0}"
-```
-
-`accepted`는 작업 접수 결과다. 완료 여부는 `/worker/task_status`로 확인한다.
+`dist/ros2-worker-jazzy` 폴더 전체를 공용 PC에 전달한다.
+공개 저장소이므로 GitHub 로그인은 필요 없다. 이미지는 Git이나 공개 레지스트리에 게시하지 않는다.
+제작 PC에서 바로 실행할 때는 `bash scripts/docker_worker.sh menu`를 사용한다.
 
 ## 문서
 
-- [로봇 설치·업데이트](DEPLOYMENT.md)
-- [실제 AI WORKER 실행](ai_worker_sorting/LIVE_ROBOT.md)
-- [자동 색 구역 분류](ai_worker_sorting/AUTO_SORT.md)
-- [작업 서비스](ai_worker_sorting/WORKER_SERVICES.md)
-- [Windows 웹캠 → Docker ROS2](ai_worker_sorting/LAPTOP_ROS2.md)
+| 문서 | 용도 |
+|---|---|
+| [공용 PC 안내](docker/SHARED_PC.md) | 받은 이미지 실행·업데이트 |
+| [Docker 가이드](DOCKER.md) | 이미지 제작·통신·데이터 보관 |
+| [터미널 메뉴](TERMINAL_MENU.md) | 초기 설정·분류·상태·취소 |
+| [설치 안내](DEPLOYMENT.md) | Docker 설치 경로 선택 |
+| [고급 설정](ADVANCED_SETUP.md) | Docker 콘솔·커스텀 모델·URDF |
+| [실물 연결](ai_worker_sorting/LIVE_ROBOT.md) | 로봇 측 준비와 제어 계약 |
+| [자동 분류](ai_worker_sorting/AUTO_SORT.md) | 분류 규칙·격리된 모의 데모 |
+| [작업 서비스](ai_worker_sorting/WORKER_SERVICES.md) | 서비스 계약·상태 |
+| [검증 기록](RELEASE_CHECKS.md) | 검증 범위 |
+| [이전 개발 기록](docs/archive/README.md) | 직접 설치·Windows·Humble 실험 |
 
-하위 문서의 `/tmp/worker_sorting_*`, Windows 경로는 개발 PC 실험 환경이다.
-새 로봇에서는 이 문서와 `DEPLOYMENT.md`의 경로를 사용한다.
-실험 결과·영상·인증 파일·모델 가중치는 Git에 포함하지 않는다.
+## 검증 범위
 
-## 검증
+Jazzy 이미지 빌드, 단위 테스트 68개, 자동 분류·작업 서비스, 공식 MoveL/그리퍼 메시지 경로 13개,
+모델 기반 교시 6개, 오프라인 YOLO 추론과 배포·볼륨·메뉴를 소프트웨어 환경에서 검증했다.
+실제 AI WORKER 연결·집기와 GPU 하드웨어 실행은 미검증이다.
 
-- Docker ROS2 Jazzy/Python 3.12 이미지 빌드와 단위 테스트 68개.
-- Docker ROS2 Jazzy에서 패키지 2개 빌드와 자동 분류·작업 서비스 통합 검증.
-- 실제 노트북 웹캠 → ROS2 → YOLO 영상 연결 검증.
-- 공식 MoveL·그리퍼 메시지와 PC 실행 도구·메뉴 백엔드로 13개 시나리오 검증(제어기 에뮬레이터).
-- 모델 기반 그리퍼 길이·카메라 스캔·자세 교시·설정 생성 6개 시나리오 검증.
-- 실제 로봇 장비에서의 ROS2 배포판·센서·컨트롤러 호환성은 아직 미검증.
-
-단위 테스트에는 NumPy, OpenCV, PyYAML이 필요하다.
-
-```bash
-cd ai_worker_sorting
-python3 -m unittest discover -s tests -v
-```
-
-코드 라이선스는 패키지 선언에 따라 Apache-2.0이다. YOLO 라이브러리·가중치 등
-별도 구성요소의 라이선스는 각각의 배포 조건을 따른다.
+코드 라이선스는 Apache-2.0이다. 별도 라이브러리·가중치에는 각 배포 조건이 적용된다.

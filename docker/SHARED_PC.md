@@ -13,7 +13,8 @@ AI WORKER의 공식 제어기·카메라는 로봇 측에서 기존 방식으로
 bash worker.sh
 ```
 
-최초 실행은 `SHA256SUMS`로 이미지 파일을 검사한 뒤 Docker에 자동 등록한다.
+이미지가 없으면 `SHA256SUMS`로 파일을 검사한 뒤 Docker에 자동 등록한다.
+같은 태그의 이미지가 이미 있으면 그대로 사용하므로 새 배포 폴더를 받았을 때는 아래 업데이트 절차의 `load`를 먼저 실행한다.
 다음부터 같은 명령으로 메뉴가 열린다. 인터넷이나 GitHub 로그인이 필요 없다.
 기본 ROS domain은 0, middleware는 Fast DDS다. 로봇과 다르면 실행 전에 실제 값으로 지정한다:
 
@@ -33,7 +34,7 @@ bash worker.sh
 설정·교시·로그는 Docker 전용 볼륨 `ros2-worker-data`에 보관한다.
 PC 작업 폴더에 `worker-data`를 만들지 않으며 컨테이너를 지워도 설정은 유지된다.
 볼륨과 이미지는 실제로 PC의 Docker 저장소에 남는다. 다른 PC로 설정이 자동 이동하지는 않는다.
-여러 장비의 설정은 `export WORKER_VOLUME=ros2-worker-장비별이름`으로 분리한다.
+여러 장비의 설정은 `export WORKER_VOLUME=ros2-worker-robot-a`처럼 영문·숫자·하이픈 이름으로 분리한다.
 여러 로봇을 동시에 제어하는 용도가 아니다. 동일 이름 컨테이너가 있으면 중복 실행을 거부한다.
 
 기존 `worker-data` 폴더를 한 번 옮길 때는 메뉴를 종료하고 실제 장비가 정지한 상태에서:
@@ -57,6 +58,7 @@ bash worker.sh
 
 이전 Humble 배포 폴더 대신 Jazzy 배포 폴더 전체를 사용한다. `image.txt`가 `ros2-worker:jazzy`인지 확인한다.
 기존 볼륨 설정은 유지된다. 의존성 확인만 하려면 `bash worker.sh check`를 사용한다.
+저장한 설정은 컨테이너의 `/data/config/live.local.yaml`, 로그는 `/data/config/menu-logs/`에 있다.
 프로그램 종료가 실제 로봇 정지를 대신하지 않는다. 작업 중 `docker stop/kill`을 사용하지 않는다.
 GPU 배포 이미지는 호스트 NVIDIA 드라이버·Container Toolkit이 추가로 필요하고 `WORKER_GPU=1`로 실행한다.
 GPU·실물 네트워크와 집기는 현장 검증이 필요하다.

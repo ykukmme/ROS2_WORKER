@@ -31,7 +31,7 @@ bash worker.sh
 공용 PC에서 빌드·인터넷·GitHub 로그인은 필요 없다. 배포 폴더는 USB에 두어도 된다.
 간단한 현장 안내는 배포 폴더의 `README.md` 또는 [SHARED_PC.md](docker/SHARED_PC.md)를 따른다.
 
-## 로봇 연결과 소스에서 직접 실행
+## 로봇 연결과 제작 PC에서 Docker 실행
 
 로봇의 공식 bringup·MoveL 제어기·카메라는 기존 방식으로 실행한다.
 로봇과 같은 ROS2 배포판·domain·middleware를 사용한다. 로봇이 Jazzy, domain 0, Fast DDS라면 기본값을 사용할 수 있다.
@@ -66,7 +66,7 @@ Docker 권한이 없다면 관리자가 Docker 사용 권한을 설정하거나 
 `1 초기 설정`을 선택한다.
 
 - 가중치 경로: 묻지 않는다. 이미지의 기본 모델을 사용한다.
-- 추론 장치: 묻지 않는다. PyTorch가 사용할 수 있는 GPU가 있으면 GPU, 없으면 CPU를 선택한다.
+- 추론 장치: 묻지 않는다. 기본 CPU 이미지는 CPU를 사용한다. GPU용 이미지와 실행 옵션을 적용했을 때 사용 가능한 GPU를 자동 선택한다.
 - 작업 범위: 기존 설정 또는 `WORKER_WORKSPACE`가 있으면 묻지 않는다. 둘 다 없으면 처음 한 번만 입력한다.
 - 그 다음에는 물건 스캔 → 첫 번째 종류 집기 자세 → 두 번째 종류 집기 자세 → 팔을 작업물에서 떨어뜨리고 저장한다.
 
@@ -82,7 +82,15 @@ export WORKER_WORKSPACE='검증한_숫자6개를_쉼표로_입력'
 
 ## 다음부터
 
-처음과 같은 ROS2/domain/middleware 환경변수를 적용한 터미널에서:
+처음과 같은 domain·middleware 설정을 적용한다. 호스트에서 ROS2 환경을 source할 필요는 없다.
+
+배포 폴더를 받은 공용 PC에서는:
+
+```bash
+bash worker.sh
+```
+
+소스가 있는 제작 PC에서는 저장소에서:
 
 ```bash
 cd ~/ROS2_WORKER
@@ -109,7 +117,7 @@ Docker 전용 볼륨 `ros2-worker-data`가 컨테이너의 `/data`로 연결된�
 | `/data/ultralytics/` | YOLO 사용자 설정 |
 
 컨테이너를 지워도 볼륨은 유지된다. 다른 PC로 자동 이동하지는 않는다.
-장비별로 분리하려면 `export WORKER_VOLUME=ros2-worker-장비별이름`으로 이름을 지정한다.
+장비별로 분리하려면 `export WORKER_VOLUME=ros2-worker-robot-a`처럼 영문·숫자·하이픈을 사용한다.
 실제 동작 중에는 볼륨 내용을 변경하지 않는다.
 
 기존 `worker-data/` 폴더를 가져오려면 메뉴 종료·실제 장비 정지 후 한 번만 실행한다:
@@ -124,8 +132,7 @@ native 설정은 `config/live.local.yaml`과 `models/`를 가진 폴더로 준�
 모델 경로도 컨테이너에서 읽을 수 있게 맞춘다.
 기존 커스텀 모델이 없을 때 기본 모델로 몰래 교체하지 않고 오류로 알린다.
 커스텀 모델의 컨테이너 경로는 `/data/models/best.pt`다.
-볼륨의 파일을 직접 편집·교체해야 한다면 로봇 정지·메뉴 종료 후
-`docker run --rm -it --mount type=volume,src=ros2-worker-data,dst=/data --entrypoint bash ros2-worker:jazzy`로 연다.
+볼륨 파일 확인·교체와 로컬 URDF 지정은 [Docker 고급 설정](ADVANCED_SETUP.md)을 따른다.
 
 이미지에는 `robotis_interfaces` 1.3.0과 `ffw_description` 2.2.6 자산이 고정 리비전으로 포함된다.
 실제 로봇의 모델·TCP가 해당 자산과 일치해야 한다. 다른 패키지/형상이면 올바른 자산을 추가해야 한다.
@@ -167,7 +174,7 @@ bash scripts/docker_worker.sh build
 bash scripts/docker_worker.sh export
 ```
 
-소스 경로에서 의존성과 내장 모델만 확인하려면 `bash scripts/docker_worker.sh check`를 사용한다. 로봇 명령은 보내지 않는다.
+배포 폴더는 `bash worker.sh check`, 소스 저장소는 `bash scripts/docker_worker.sh check`로 의존성과 내장 모델을 확인한다. 로봇 명령은 보내지 않는다.
 진단 출력의 `ROS2: jazzy`와 `Python: 3.12...`로 컨테이너 버전을 확인할 수 있다.
 Linux host network/IPC를 사용하지만 domain·middleware·방화벽·DDS/Zenoh 설정까지 자동 해결되지는 않는다.
 기본 Fast DDS 또는 Cyclone DDS를 사용한다. Zenoh·DDS 설정 파일이 필요한 장비는 해당 런타임/파일을 별도로 맞춰야 한다.
