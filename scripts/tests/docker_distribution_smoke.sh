@@ -23,6 +23,9 @@ docker run --rm --network none --mount "type=volume,src=$WORKER_VOLUME,dst=/data
   "$WORKER_IMAGE" bash -c 'test "$(cat /data/config/probe)" = persisted'
 mkdir -p "$fixture/config"
 printf 'migration_probe: preserved\n' > "$fixture/config/live.local.yaml"
+# Hosted runners can use UID 1001; container UID 1000 reads this synthetic fixture.
+chmod 755 "$fixture" "$fixture/config"
+chmod 644 "$fixture/config/live.local.yaml"
 WORKER_VOLUME="$import_volume" bash scripts/run_worker.sh import-data "$fixture"
 docker run --rm --network none --mount "type=volume,src=$import_volume,dst=/data" \
   "$WORKER_IMAGE" bash -c 'grep -q "migration_probe: preserved" /data/config/live.local.yaml'
