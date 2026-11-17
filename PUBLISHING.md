@@ -3,6 +3,11 @@
 공개 이미지 주소는 `ghcr.io/ykukmme/ros2-worker:jazzy`다. 배포 대상은 Linux amd64 / Jazzy / CPU다.
 Ubuntu 사용자에게 패키지 토큰이나 Docker 로그인을 요구하지 않는다.
 
+현재 패키지는 공개 상태이며, [게시 실행](https://github.com/ykukmme/ROS2_WORKER/actions/runs/44010773308)에서 이미지 게시와 익명 접근 검사를 통과했다.
+일반 Ubuntu 사용자는 아래 최초 공개 설정을 수행할 필요가 없다.
+검증한 소스는 `f863d231a83b2ed32364f6768b7f5e7f62e637d8`이며 이미지 digest는
+`sha256:5c74814fcd52f798980cc59d7cb3632959be0a7bafdd56a750d64b4eaac7e801`이다.
+
 ## 자동 배포
 
 `.github/workflows/publish-image.yml`은 기본 브랜치 `codex/initial-release`의 이미지 관련 변경과 수동 실행에 반응한다.
