@@ -1,12 +1,13 @@
 # Jazzy Docker 터미널 메뉴
 
-공용 PC에서는 받은 배포 폴더에서:
+공용 PC에서는 Git으로 받은 저장소 또는 실행기 파일이 있는 폴더에서:
 
 ```bash
 bash worker.sh
 ```
 
-소스로 이미지를 만든 PC에서는 저장소에서 `bash scripts/docker_worker.sh menu`를 사용한다.
+첫 실행은 공개 이미지를 자동 다운로드하고, 이후에는 저장된 이미지를 사용한다.
+로컬 개발 이미지는 `WORKER_IMAGE=ros2-worker:jazzy bash worker.sh`로 선택한다.
 PC에서 ROS2 환경을 source하거나 별도 분류 서버를 실행할 필요는 없다.
 AI WORKER 측에는 공식 제어기·카메라·TF가 준비돼 있어야 한다.
 설치·업데이트는 [공용 PC 안내](docker/SHARED_PC.md), 이미지 제작은 [Docker 가이드](DOCKER.md)를 따른다.

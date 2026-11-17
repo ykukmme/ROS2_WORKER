@@ -3,11 +3,21 @@
 set -euo pipefail
 bundle_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 image="${WORKER_IMAGE:-}"
-if [[ -z "$image" && -f "$bundle_dir/image.txt" ]]; then
-  IFS= read -r image < "$bundle_dir/image.txt"
+bundle_image=""
+if [[ -f "$bundle_dir/image.txt" ]]; then
+  IFS= read -r bundle_image < "$bundle_dir/image.txt"
 fi
-image="${image:-ros2-worker:${WORKER_ROS_DISTRO:-jazzy}}"
+if [[ -z "$image" ]]; then
+  if [[ -n "$bundle_image" ]]; then
+    image="$bundle_image"
+  elif [[ "${WORKER_ROS_DISTRO:-jazzy}" == jazzy ]]; then
+    image=ghcr.io/ykukmme/ros2-worker:jazzy
+  else
+    image="ros2-worker:${WORKER_ROS_DISTRO}"
+  fi
+fi
 volume="${WORKER_VOLUME:-ros2-worker-data}"
+container="${WORKER_CONTAINER:-ros2-worker}"
 if [[ ! "$volume" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]+$ ]]; then
   printf 'Invalid WORKER_VOLUME: use a Docker volume name, not a path.\n' >&2
   exit 2
@@ -19,18 +29,44 @@ load_image() {
   docker load --input "$archive"
   docker image inspect "$image" >/dev/null
 }
+ensure_stopped() {
+  if [[ "$(docker container inspect --format '{{.State.Running}}' "$container" 2>/dev/null || true)" == true ]]; then
+    printf 'Close the menu after confirming the robot has stopped before updating images.\n' >&2
+    return 1
+  fi
+}
+pull_image() {
+  if [[ "$image" != */* ]]; then
+    printf 'Local image missing: %s. Build it or use an offline bundle.\n' "$image" >&2
+    return 1
+  fi
+  if ! docker pull -- "$image"; then
+    printf 'Image download failed. Check network access and GHCR package visibility (Public).\n' >&2
+    return 1
+  fi
+}
 command="${1:-menu}"
-case "$command" in menu|check|load|import-data) ;; *) printf 'Usage: bash worker.sh {menu|check|load|import-data DIRECTORY}\n' >&2; exit 2 ;; esac
+case "$command" in menu|check|load|pull|update|import-data) ;; *) printf 'Usage: bash worker.sh {menu|check|pull|update|load|import-data DIRECTORY}\n' >&2; exit 2 ;; esac
 docker_os="$(docker info --format '{{.OSType}}')"
 [[ "$docker_os" == linux ]] || { printf 'Linux containers are required.\n' >&2; exit 2; }
 if [[ "$command" == load ]]; then
+  ensure_stopped
   load_image
   exit
 fi
-if ! docker image inspect "$image" >/dev/null 2>&1; then
-  load_image
+if [[ "$command" == pull || "$command" == update ]]; then
+  ensure_stopped
+  pull_image
+  exit
 fi
-args=(run --rm --pull never --name "${WORKER_CONTAINER:-ros2-worker}" --stop-timeout 30
+if ! docker image inspect "$image" >/dev/null 2>&1; then
+  if [[ -n "$bundle_image" && "$image" == "$bundle_image" && -f "$bundle_dir/ros2-worker.tar" ]]; then
+    load_image
+  else
+    pull_image
+  fi
+fi
+args=(run --rm --pull never --name "$container" --stop-timeout 30
       --network host --ipc host --user 1000:1000
       --mount "type=volume,src=$volume,dst=/data"
       -e "ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}"

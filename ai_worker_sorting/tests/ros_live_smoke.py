@@ -4,6 +4,8 @@ No physical robot is contacted. All controller topics use /live_test/*.
 The worker runs dry_run=False and publishes actual robotis_interfaces/MoveL.
 """
 import argparse
+from collections import deque
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -25,7 +27,7 @@ from sensor_msgs.msg import JointState,CameraInfo,Image
 from trajectory_msgs.msg import JointTrajectory
 from robotis_interfaces.msg import MoveL
 from cv_bridge import CvBridge
-from tf2_ros import TransformBroadcaster
+from tf2_ros import TransformBroadcaster,StaticTransformBroadcaster
 from ai_worker_interfaces.msg import DetectedObject
 from ai_worker_interfaces.srv import DetectObjects,PrepareAutoSort,StartTask,TaskStatus,SessionStatus
 
@@ -55,6 +57,8 @@ class ControllerFixture(Node):
             joint_states_topic='/live_test/joints').items():
             self.declare_parameter(name,value)
         self.lock = threading.RLock()
+        self.frames = deque(maxlen=120)
+        self.latest_observation = None
         self.pose,self.quaternion = Point(.3,0.,.4),[1.,0.,0.,0.]
         self.gripper,self.held = 0.,None
         self.moves,self.grips = [],[]
@@ -63,11 +67,20 @@ class ControllerFixture(Node):
         self.objects = [dict(name='can',point=Point(.2,-.05,.15),pixel=(100.,100.),placed=False),
                         dict(name='cup',point=Point(.27,.05,.15),pixel=(180.,190.),placed=False)]
         self.tf = TransformBroadcaster(self)
+        self.camera_tf = StaticTransformBroadcaster(self)
+        camera = TransformStamped()
+        camera.header.stamp = self.get_clock().now().to_msg()
+        camera.header.frame_id,camera.child_frame_id = 'live_test_base','live_test_camera'
+        camera.transform.translation.x,camera.transform.translation.z = .4,1.
+        camera.transform.rotation.x,camera.transform.rotation.w = 1.,0.
+        self.camera_tf.sendTransform(camera)
         self.bridge = CvBridge()
         self.joints = self.create_publisher(JointState,'/live_test/joints',10)
         self.info = self.create_publisher(CameraInfo,'/live_test/info',10)
         self.rgb = self.create_publisher(Image,'/live_test/color',10)
         self.depth = self.create_publisher(Image,'/live_test/depth',10)
+        self.processed_depth = self.create_subscription(Image,'/worker_camera/depth_rect',
+                                                       self.observe,qos_profile_sensor_data)
         self.move_sub = self.create_subscription(MoveL,'/live_test/movel',self.move,10)
         self.grip_sub = self.create_subscription(JointTrajectory,'/live_test/gripper',self.grip,10)
         self.vision = self.create_service(DetectObjects,'/vision/detect_objects',self.detect)
@@ -103,15 +116,12 @@ class ControllerFixture(Node):
         stamp = self.get_clock().now().to_msg()
         with self.lock:
             pose,q,gripper = self.pose,list(self.quaternion),self.gripper
+            objects,peak = deepcopy(self.objects),getattr(self,'height_peak',0.)
         tcp = TransformStamped()
         tcp.header.stamp,tcp.header.frame_id,tcp.child_frame_id = stamp,'live_test_base','live_test_tcp'
         tcp.transform.translation.x,tcp.transform.translation.y,tcp.transform.translation.z = pose.x,pose.y,pose.z
         tcp.transform.rotation.x,tcp.transform.rotation.y,tcp.transform.rotation.z,tcp.transform.rotation.w = q
-        camera = TransformStamped()
-        camera.header.stamp,camera.header.frame_id,camera.child_frame_id = stamp,'live_test_base','live_test_camera'
-        camera.transform.translation.x,camera.transform.translation.z = .4,1.
-        camera.transform.rotation.x,camera.transform.rotation.w = 1.,0.
-        self.tf.sendTransform([tcp,camera])
+        self.tf.sendTransform(tcp)
         joints = JointState()
         joints.header.stamp = stamp
         joints.name = [f'arm_l_joint{i}' for i in range(1,8)]+['gripper_l_joint1']
@@ -128,24 +138,37 @@ class ControllerFixture(Node):
         self.info.publish(info)
         color = self.bridge.cv2_to_imgmsg(np.full((480,640,3),180,dtype=np.uint8),encoding='bgr8')
         depth_pixels = np.full((480,640),900,dtype=np.uint16)
-        for obj in self.objects:
+        for obj in objects:
             u,v = obj['pixel']
             x0,y0 = max(0,int(np.floor(u-20))),max(0,int(np.floor(v-20)))
             x1,y1 = min(640,int(np.ceil(u+20))+1),min(480,int(np.ceil(v+20))+1)
             value = int(1000*(1-obj['point'].z))
             depth_pixels[y0:y1,x0:x1] = value
             # A visible rim can be higher than the reported central surface.
-            depth_pixels[y0:y0+2,x0:x1] = value-int(1000*getattr(self,'height_peak',0.))
+            depth_pixels[y0:y0+2,x0:x1] = value-int(1000*peak)
         depth = self.bridge.cv2_to_imgmsg(depth_pixels,encoding='16UC1')
         color.header = depth.header = info.header
+        with self.lock:
+            self.frames.append((deepcopy(info.header),objects,peak))
         self.rgb.publish(color)
         self.depth.publish(depth)
 
-    def detect(self,request,response):
-        response.success = True
-        response.header.stamp,response.header.frame_id = self.get_clock().now().to_msg(),'live_test_camera'
+    def observe(self,msg):
         with self.lock:
-            for i,data in enumerate(self.objects):
+            for frame in reversed(self.frames):
+                if frame[0].stamp==msg.header.stamp:
+                    self.latest_observation = frame
+                    break
+
+    def detect(self,request,response):
+        with self.lock:
+            observation = self.latest_observation
+            if observation is None:
+                response.success,response.message = False,'Waiting for a synchronized camera frame'
+                return response
+            response.success = True
+            response.header = deepcopy(observation[0])
+            for i,data in enumerate(observation[1]):
                 if request.target_class and request.target_class!=data['name']:
                     continue
                 obj = DetectedObject(class_name=data['name'],confidence=.99,localized=True,simulated=False)
@@ -192,6 +215,17 @@ def main():
     detector = RGBDDetector(parameter_overrides=[Parameter('weights',value=str(args.weights)),
         Parameter('device',value='cpu'),Parameter('imgsz',value=320),Parameter('inference_hz',value=2.),
         Parameter('max_age',value=2.)])
+    # Cold torchvision imports can exceed the sensor-readiness deadline on shared runners.
+    # Warm up before spinning sensors; the ROS pipeline still checks fresh inferred frames.
+    import cv2
+    import torch
+    import torchvision
+    cv2.setNumThreads(1)
+    torch.set_num_threads(1)
+    assert torchvision.ops.nms(torch.tensor([[0.,0.,10.,10.],[1.,1.,9.,9.]]),
+                               torch.tensor([.9,.8]),.5).tolist()==[0]
+    detector.model.predict(np.full((480,640,3),180,dtype=np.uint8),conf=detector.cfg['confidence'],
+                           imgsz=320,device='cpu',verbose=False)
     probe = Node('live_test_probe')
     received = {}
     from vision_msgs.msg import Detection2DArray
@@ -218,6 +252,13 @@ def main():
         future = client.call_async(request)
         until(future.done,'Service response missing')
         return future.result()
+    def peak_ready(value):
+        with fixture.lock:
+            observation = fixture.latest_observation
+        if observation is None or observation[2]!=value:
+            return False
+        with worker.auto_lock:
+            return any(m.header.stamp==observation[0].stamp for m in worker.geometry_depths)
     try:
         until(lambda:all(k in received for k in ('rgb','depth','detections')),'RGB-D/real YOLO pipeline failed')
         assert received['rgb'].encoding=='bgr8' and received['depth'].encoding=='16UC1'
@@ -245,13 +286,15 @@ def main():
             assert json.loads(result.stdout)['motion_commands_sent'] is False
         cases.append('connected-PC wrapper sources the overlay and doctor checks RGB-D, joints, TF and controller without motion')
         cases.append('read-only configuration tool discovers real typed endpoints and writes a live profile')
-        fixture.height_peak = .1
-        time.sleep(.15)
+        with fixture.lock:
+            fixture.height_peak = .1
+        until(lambda:peak_ready(.1),'Raised rim depth did not reach the worker')
         rejected = cli('prepare',expected=1)
         assert not rejected.success and 'height' in rejected.message.lower()
         assert not fixture.moves and not fixture.grips
-        fixture.height_peak = 0.
-        time.sleep(.15)
+        with fixture.lock:
+            fixture.height_peak = 0.
+        until(lambda:peak_ready(0.),'Normal depth did not reach the worker')
         cases.append('high outer rims exceeding the scanned bound reject preparation before any actuator command')
         prepared = cli('prepare')
         assert prepared.success,prepared.message

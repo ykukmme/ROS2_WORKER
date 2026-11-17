@@ -1,6 +1,9 @@
 ARG ROS_DISTRO=jazzy
 FROM ros:${ROS_DISTRO}-ros-base
 ARG ROS_DISTRO
+LABEL org.opencontainers.image.source="https://github.com/ykukmme/ROS2_WORKER" \
+      org.opencontainers.image.title="ROS2_WORKER" \
+      org.opencontainers.image.description="Jazzy RGB-D and YOLO sorting for ROBOTIS AI WORKER"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 RUN for source_file in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list; do \

@@ -1,26 +1,23 @@
 # Ubuntu 설치·배포 안내
 
-기본 실행 방식은 Jazzy Docker다. 환경에 맞는 문서로 진행한다.
+기본 방식은 공개 GHCR Jazzy 이미지를 자동 다운로드하는 Docker 실행기다.
 
-| 환경 | 필요한 항목 | 실행 |
-|---|---|---|
-| 배포 폴더를 받은 공용 PC | Docker Engine·사용 권한 | 배포 폴더에서 `bash worker.sh` |
-| Git 소스로 이미지를 만드는 PC | Git·Docker Engine/Compose·인터넷 | 저장소에서 `bash scripts/docker_worker.sh build` |
+| 환경 | 방법 |
+|---|---|
+| Git이 있는 공용 PC | `git clone` 후 저장소에서 `bash worker.sh` |
+| Git이 없는 공용 PC | 실행기 파일만 저장해 `bash worker.sh` |
+| 인터넷이 없는 PC | 이미지가 포함된 USB 배포 폴더에서 `bash worker.sh` |
+| 로컬 코드를 개발하는 PC | 소스 이미지 빌드 후 `WORKER_IMAGE=ros2-worker:jazzy bash worker.sh` |
 
-## 공용 PC
+공용 PC에는 Docker Engine·사용 권한만 준비한다.
+Git·브라우저·curl 중 가능한 방법으로 실행기를 받는다.
+GitHub·Docker 로그인, 호스트 ROS2/Python 설치, 로컬 이미지 빌드는 일반 실행에 필요 없다.
 
-[공용 PC 안내](docker/SHARED_PC.md)를 따른다.
-PC에 ROS2·Python을 설치하거나 ROS2 환경을 source할 필요는 없다.
-최초 설정과 일상 사용은 [터미널 메뉴](TERMINAL_MENU.md)에 있다.
-
-## 제작 PC와 업데이트
-
-[Docker 가이드](DOCKER.md)를 따른다. GitHub 로그인은 필요 없다.
-기존 저장소에서는 `git pull` 후 이미지를 다시 빌드하고 내보낸다.
-공용 PC에는 새 배포 폴더 전체를 전달하고 `bash worker.sh load`로 갱신한다.
-Git 소스만 업데이트하면 이미 만들어진 이미지의 코드는 바뀌지 않는다.
-
-## 로봇 측 준비
+다운로드·업데이트는 [공용 PC 안내](docker/SHARED_PC.md),
+교시·일상 사용은 [터미널 메뉴](TERMINAL_MENU.md)를 따른다.
+로컬 빌드·오프라인 배포는 [Docker 가이드](DOCKER.md)에 있다.
+Git만 업데이트하면 기존 이미지는 바뀌지 않으므로 이미지 갱신에는 `bash worker.sh update`가 필요하다.
 
 공식 제어기·카메라·TF는 AI WORKER 측에서 실행한다. [실물 연결](ai_worker_sorting/LIVE_ROBOT.md)을 따른다.
-기존 호스트 직접 설치 절차는 [이전 기록](docs/archive/NATIVE_INSTALL.md)에 보관한다.
+자동 이미지 배포와 최초 공개 설정은 [배포 관리자 안내](PUBLISHING.md)에 있다.
+기존 직접 설치 절차는 [이전 기록](docs/archive/NATIVE_INSTALL.md)에 보관한다.

@@ -37,7 +37,7 @@
 ```bash
 docker run --rm -it --name ros2-worker-demo --network none \
   --tmpfs /data:rw,mode=1777 -e ROS_DOMAIN_ID=79 \
-  ros2-worker:jazzy ros2 launch ai_worker_sorting auto_sort.launch.py \
+  ghcr.io/ykukmme/ros2-worker:jazzy ros2 launch ai_worker_sorting auto_sort.launch.py \
   mock_mode:=true python_prefix:=/opt/worker_venv/bin/python
 ```
 

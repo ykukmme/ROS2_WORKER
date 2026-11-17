@@ -14,7 +14,7 @@ from rclpy.executors import MultiThreadedExecutor
 from ai_worker_sorting.core import Point
 from ai_worker_sorting.zone_service import ZoneService
 from ai_worker_sorting.rgbd_input import AlignedRGBDInput
-from ros_live_smoke import ControllerFixture
+from ros_live_smoke import ControllerFixture,until
 
 
 def main():
@@ -50,6 +50,7 @@ def main():
     thread.start()
     cases = []
     try:
+        until(lambda:fixture.latest_observation is not None,'Teaching camera frame missing')
         with tempfile.TemporaryDirectory() as directory:
             state,profile = Path(directory)/'teach.local.yaml',Path(directory)/'live.local.yaml'
             def invoke(stage,*options,expected=0):

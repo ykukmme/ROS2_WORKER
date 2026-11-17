@@ -1,6 +1,6 @@
 services:
   worker:
-    image: ros2-worker:${WORKER_ROS_DISTRO:-jazzy}
+    image: ${WORKER_IMAGE:-ghcr.io/ykukmme/ros2-worker:jazzy}
     build:
       context: .
       args:

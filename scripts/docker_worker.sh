@@ -9,10 +9,11 @@ if [[ "${WORKER_GPU:-0}" == 1 ]]; then
   export WORKER_TORCH_INDEX_URL="${WORKER_TORCH_INDEX_URL:-https://pypi.org/simple}"
 fi
 case "${1:-menu}" in
-  build) exec docker compose "${args[@]}" build worker ;;
-  menu|check|import-data) exec bash scripts/run_worker.sh "$@" ;;
+  build) export WORKER_IMAGE="${WORKER_IMAGE:-ros2-worker:$WORKER_ROS_DISTRO}"
+         exec docker compose "${args[@]}" build worker ;;
+  menu|check|pull|update|import-data) exec bash scripts/run_worker.sh "$@" ;;
   export)
-    image="ros2-worker:$WORKER_ROS_DISTRO"
+    image="${WORKER_IMAGE:-ros2-worker:$WORKER_ROS_DISTRO}"
     docker image inspect "$image" >/dev/null
     destination="${2:-dist/ros2-worker-$WORKER_ROS_DISTRO}"
     mkdir -p -- "$destination"
@@ -24,5 +25,5 @@ case "${1:-menu}" in
     mv -f -- "$destination/ros2-worker.tar.partial" "$destination/ros2-worker.tar"
     (cd -- "$destination" && sha256sum ros2-worker.tar > SHA256SUMS)
     printf 'Copy this entire directory to the Ubuntu PC: %s\n' "$destination" ;;
-  *) printf 'Usage: bash scripts/docker_worker.sh {build|menu|check|import-data DIRECTORY|export [DIRECTORY]}\n' >&2; exit 2 ;;
+  *) printf 'Usage: bash scripts/docker_worker.sh {build|menu|check|pull|update|import-data DIRECTORY|export [DIRECTORY]}\n' >&2; exit 2 ;;
 esac

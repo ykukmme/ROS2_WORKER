@@ -1,0 +1,91 @@
+name: Publish Jazzy image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/initial-release]
+    paths:
+      - .github/workflows/publish-image.yml
+      - Dockerfile
+      - .dockerignore
+      - docker/entrypoint.sh
+      - ai_worker_interfaces/**
+      - ai_worker_sorting/**
+      - scripts/build_ros2.sh
+      - scripts/worker.sh
+      - scripts/run_worker.sh
+      - scripts/tests/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-jazzy
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/ykukmme/ros2-worker
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build CPU image
+        run: |
+          set -euo pipefail
+          docker build --pull --build-arg ROS_DISTRO=jazzy \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag "$IMAGE:sha-$GITHUB_SHA" .
+      - name: Test image and launcher
+        env:
+          ROS_DOMAIN_ID: '88'
+        run: |
+          set -euo pipefail
+          bash scripts/tests/registry_launcher_smoke.sh
+          WORKER_IMAGE="$IMAGE:sha-$GITHUB_SHA" bash scripts/tests/docker_distribution_smoke.sh
+          docker run --rm --network none -e ROS_DOMAIN_ID=88 -e WORKER_TEST_WS=/opt/worker_ws \
+            "$IMAGE:sha-$GITHUB_SHA" bash -ec '
+              "$WORKER_PYTHON" -m unittest discover -s /opt/worker/ai_worker_sorting/tests -q
+              "$WORKER_PYTHON" /opt/worker/ai_worker_sorting/tests/ros_live_smoke.py --weights /opt/worker/models/yolo26n.pt --output /tmp/live.json
+              "$WORKER_PYTHON" /opt/worker/ai_worker_sorting/tests/ros_teach_smoke.py --weights /opt/worker/models/yolo26n.pt --output /tmp/teach.json
+            '
+      - name: Publish tested image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$RUNNER_TEMP/worker-docker-auth"
+          mkdir -m 700 -p "$DOCKER_CONFIG"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:sha-$GITHUB_SHA"
+          docker tag "$IMAGE:sha-$GITHUB_SHA" "$IMAGE:jazzy"
+          docker push "$IMAGE:jazzy"
+          printf 'Published `%s:sha-%s` and `%s:jazzy`.\n' "$IMAGE" "$GITHUB_SHA" "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove registry credentials
+        if: always()
+        run: |
+          DOCKER_CONFIG="$RUNNER_TEMP/worker-docker-auth" docker logout ghcr.io
+
+  verify-public:
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - name: Verify anonymous image access
+        run: |
+          set -euo pipefail
+          export DOCKER_CONFIG="$RUNNER_TEMP/worker-anonymous"
+          mkdir -m 700 -p "$DOCKER_CONFIG"
+          if ! docker manifest inspect "$IMAGE:sha-$GITHUB_SHA" >/dev/null; then
+            echo '::error::Set the GHCR ros2-worker package visibility to Public, then rerun this failed job.'
+            exit 1
+          fi
+          printf 'Anonymous access verified for `%s:sha-%s`.\n' "$IMAGE" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

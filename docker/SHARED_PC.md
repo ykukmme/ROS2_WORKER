@@ -1,64 +1,85 @@
 # 공용 Ubuntu PC에서 실행
 
-관리자가 Docker Engine 사용 권한을 제공해야 한다. Git·ROS2·Python·Compose 설치는 필요 없다.
-컨테이너는 Ubuntu 24.04 x86_64 / ROS2 Jazzy / Python 3.12 / CPU 기본 배포다.
-로봇 배포판과 다른 이미지는 사용하지 않는다.
-AI WORKER의 공식 제어기·카메라는 로봇 측에서 기존 방식으로 실행한다.
+Docker Engine과 사용 권한을 준비한다. 실행 환경은 Jazzy / Python 3.12 / x86_64 CPU다.
+AI WORKER 측에는 기존 공식 제어기·카메라·TF가 실행 중이어야 한다.
+호스트 ROS2·Python 설치나 GitHub·Docker 로그인은 필요 없다.
 
-## 실행
-
-받은 배포 폴더 전체를 USB 또는 PC에 두고 그 폴더에서 실행한다:
+## Git으로 받기
 
 ```bash
+git clone https://github.com/ykukmme/ROS2_WORKER.git
+cd ROS2_WORKER
 bash worker.sh
 ```
 
-이미지가 없으면 `SHA256SUMS`로 파일을 검사한 뒤 Docker에 자동 등록한다.
-같은 태그의 이미지가 이미 있으면 그대로 사용하므로 새 배포 폴더를 받았을 때는 아래 업데이트 절차의 `load`를 먼저 실행한다.
-다음부터 같은 명령으로 메뉴가 열린다. 인터넷이나 GitHub 로그인이 필요 없다.
-기본 ROS domain은 0, middleware는 Fast DDS다. 로봇과 다르면 실행 전에 실제 값으로 지정한다:
+첫 실행에 공개 GHCR 이미지를 내려받고 메뉴를 연다.
+이후에는 같은 폴더에서 `bash worker.sh`만 실행한다. 저장된 이미지와 설정을 재사용한다.
+
+## Git 없이 실행기만 받기
+
+브라우저로 실행기 파일을 저장하거나, curl이 있으면 다음 명령을 사용한다:
+
+```bash
+curl -fL https://raw.githubusercontent.com/ykukmme/ROS2_WORKER/codex/initial-release/scripts/run_worker.sh -o worker.sh
+bash worker.sh
+```
+
+이미지 다운로드에는 최초 한 번 인터넷과 수 GB의 Docker 저장 공간이 필요하다.
+일반 실행에서는 이미 있는 이미지를 자동 업데이트하지 않는다.
+다운로드가 실패하면 메뉴를 열지 않는다. `denied`·`unauthorized`가 나오면 네트워크와 GHCR 공개 상태를 확인한다.
+공개 이미지는 로그인 없이 받을 수 있어야 하며, 공개 여부는 배포자가 [관리자 안내](../PUBLISHING.md)에 따라 설정한다.
+
+## 처음 메뉴를 사용할 때
+
+`1 초기 설정` → 작업 범위 최초 입력 → 두 종류 스캔·집기 자세 교시·저장.
+그 다음 `3 분류 시작`을 선택하고 안내를 확인한다.
+가중치·추론 장치는 자동 선택한다. 팔은 작업물에서 떨어뜨리고 그리퍼는 빈 상태로 시작한다.
+실제 작업은 별도 확인 후 시작한다. 자세한 화면은 [터미널 메뉴](../TERMINAL_MENU.md)를 따른다.
+
+기본 domain은 0, middleware는 Fast DDS다. 로봇과 다를 때만 실제 값으로 지정한다:
 
 ```bash
 export ROS_DOMAIN_ID=실제_로봇_도메인_숫자
-# Cyclone DDS를 사용하는 로봇인 경우에만:
+# Cyclone DDS를 사용하는 로봇일 때만:
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 bash worker.sh
 ```
 
-메뉴에서 `1 초기 설정` → 작업 범위 최초 입력 → 두 종류 스캔·집기 자세 교시·저장.
-그 다음 `3 분류 시작`을 선택하고 안내를 확인한다. 가중치와 추론 장치는 자동 선택한다.
-팔을 작업물에서 떨어뜨리고, 빈 그리퍼로 시작한다. 실제 시작은 별도 확인 후 수행한다.
-
 ## 저장 위치
 
-설정·교시·로그는 Docker 전용 볼륨 `ros2-worker-data`에 보관한다.
-PC 작업 폴더에 `worker-data`를 만들지 않으며 컨테이너를 지워도 설정은 유지된다.
-볼륨과 이미지는 실제로 PC의 Docker 저장소에 남는다. 다른 PC로 설정이 자동 이동하지는 않는다.
-여러 장비의 설정은 `export WORKER_VOLUME=ros2-worker-robot-a`처럼 영문·숫자·하이픈 이름으로 분리한다.
-여러 로봇을 동시에 제어하는 용도가 아니다. 동일 이름 컨테이너가 있으면 중복 실행을 거부한다.
+| 항목 | Docker 볼륨 내부 경로 |
+|---|---|
+| 설정·교시 | `/data/config/live.local.yaml` |
+| 실행용 설정 | `/data/config/runtime.local.yaml` |
+| 메뉴·노드 로그 | `/data/config/menu-logs/` |
 
-기존 `worker-data` 폴더를 한 번 옮길 때는 메뉴를 종료하고 실제 장비가 정지한 상태에서:
+볼륨 이름은 `ros2-worker-data`다. 컨테이너를 지워도 유지되며 PC의 Docker 저장소에 남는다.
+다른 장비는 `export WORKER_VOLUME=ros2-worker-robot-a`처럼 영문·숫자·하이픈으로 분리한다.
+다른 PC로 설정이 자동 이동하지는 않는다.
 
-```bash
-bash worker.sh import-data /기존/ROS2_WORKER/worker-data
-```
+## 업데이트
 
-볼륨에 파일이 있으면 가져오기를 거부한다. 커스텀 모델은 함께 옮기고 설정 경로를
-`/data/models/best.pt`처럼 컨테이너 경로로 맞춘다. 기존 폴더는 자동 삭제하지 않는다.
-
-## 새 이미지로 업데이트
-
-작업 종료·실제 장비 정지·메뉴 종료 후 새 배포 폴더에서:
-이전 터미널에 `WORKER_IMAGE`를 지정했다면 먼저 `unset WORKER_IMAGE`로 해제한다.
+실제 장비 정지·작업 종료를 확인하고 메뉴를 닫은 뒤 Git으로 받은 경우:
 
 ```bash
-bash worker.sh load
+git pull
+bash worker.sh update
 bash worker.sh
 ```
 
-이전 Humble 배포 폴더 대신 Jazzy 배포 폴더 전체를 사용한다. `image.txt`가 `ros2-worker:jazzy`인지 확인한다.
-기존 볼륨 설정은 유지된다. 의존성 확인만 하려면 `bash worker.sh check`를 사용한다.
-저장한 설정은 컨테이너의 `/data/config/live.local.yaml`, 로그는 `/data/config/menu-logs/`에 있다.
-프로그램 종료가 실제 로봇 정지를 대신하지 않는다. 작업 중 `docker stop/kill`을 사용하지 않는다.
-GPU 배포 이미지는 호스트 NVIDIA 드라이버·Container Toolkit이 추가로 필요하고 `WORKER_GPU=1`로 실행한다.
-GPU·실물 네트워크와 집기는 현장 검증이 필요하다.
+실행기만 받은 경우에는 새 실행기 파일을 같은 다운로드 주소에서 저장한 뒤
+`bash worker.sh update`, `bash worker.sh`를 실행한다.
+업데이트는 이미지만 바꾸며 설정 볼륨을 초기화하지 않는다.
+진단만 실행하려면 `bash worker.sh check`를 사용한다.
+실행 중인 기본 컨테이너가 있으면 `update`·`load`를 거부한다.
+
+## USB 오프라인 배포
+
+이미지·`image.txt`·체크섬이 포함된 배포 폴더를 받았다면 그 폴더에서 `bash worker.sh`로 실행한다.
+이미지가 없으면 체크섬을 검사하고 동봉된 이미지를 등록한다. 인터넷·Git은 필요 없다.
+새 USB 배포 폴더는 `bash worker.sh load`로 등록한다. 온라인 업데이트 명령과 구분한다.
+이전 터미널에 `WORKER_IMAGE`를 지정했다면 번들 기본 이미지를 쓰기 전에 `unset WORKER_IMAGE`로 해제한다.
+기존 설정 가져오기와 커스텀 모델은 [Docker 가이드](../DOCKER.md)를 따른다.
+
+`docker stop/kill`을 실제 로봇 정지 수단으로 사용하지 않는다.
+GPU·실물 네트워크·집기는 현장 검증이 필요하다.

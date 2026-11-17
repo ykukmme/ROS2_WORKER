@@ -1,7 +1,7 @@
 # Docker 고급 설정
 
 일반 사용은 [터미널 메뉴](TERMINAL_MENU.md)를 따른다.
-이 문서는 등록된 `ros2-worker:jazzy` 이미지와 Docker 볼륨의 파일을 직접 다루는 경우에 사용한다.
+이 문서는 다운로드한 `ghcr.io/ykukmme/ros2-worker:jazzy` 이미지와 Docker 볼륨의 파일을 직접 다루는 경우에 사용한다.
 메뉴 종료와 실제 장비 정지를 확인한 뒤 진행한다.
 
 ## 파일 확인·가져오기
@@ -15,7 +15,7 @@
 ```bash
 docker run --rm -it --name ros2-worker-tools --user 1000:1000 \
   --mount type=volume,src=ros2-worker-data,dst=/data \
-  ros2-worker:jazzy bash
+  ghcr.io/ykukmme/ros2-worker:jazzy bash
 ```
 
 다음은 **컨테이너 콘솔 안**에서 실행한다:
@@ -55,7 +55,7 @@ docker run --rm -it --name ros2-worker --stop-timeout 30 \
   -e ROS_DOMAIN_ID=0 -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
   -e WORKER_CONFIG=/data/config/live.local.yaml \
   -e WORKER_ROBOT_URDF=/data/models/robot.urdf \
-  ros2-worker:jazzy menu
+  ghcr.io/ykukmme/ros2-worker:jazzy menu
 ```
 
 메뉴가 교시·설정·분류 작업을 관리한다. 별도 서버나 서비스 시작 명령을 함께 실행하지 않는다.
