@@ -21,6 +21,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.qos import qos_profile_sensor_data
 from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import JointState,CameraInfo,Image
@@ -50,7 +51,7 @@ def until(predicate,message,timeout=12):
 
 
 class ControllerFixture(Node):
-    def __init__(self):
+    def __init__(self,camera_period=.03):
         super().__init__('live_test_controller_fixture')
         for name,value in dict(l_gripper_name='live_test_tcp',left_movel_topic='/live_test/movel',
             left_raw_traj_topic='/live_test/gripper',left_gripper_joint='gripper_l_joint1',
@@ -84,7 +85,9 @@ class ControllerFixture(Node):
         self.move_sub = self.create_subscription(MoveL,'/live_test/movel',self.move,10)
         self.grip_sub = self.create_subscription(JointTrajectory,'/live_test/gripper',self.grip,10)
         self.vision = self.create_service(DetectObjects,'/vision/detect_objects',self.detect)
-        self.timer = self.create_timer(.03,self.tick)
+        # Sensor work must not starve controller parameter/service callbacks.
+        self.sensor_callbacks = MutuallyExclusiveCallbackGroup()
+        self.timer = self.create_timer(camera_period,self.tick,callback_group=self.sensor_callbacks)
 
     def move(self,msg):
         assert msg.pose.header.frame_id=='live_test_base'

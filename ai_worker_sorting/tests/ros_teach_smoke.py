@@ -25,7 +25,7 @@ def main():
     args = parser.parse_args()
     cv2.setNumThreads(1)
     rclpy.init(args=[])
-    fixture = ControllerFixture()
+    fixture = ControllerFixture(camera_period=.1)
     fixture.declare_parameter('robot_description','''<robot name="test_hand">
 <link name="live_test_tcp"/>
 <link name="finger"><collision><origin xyz="0 0 .01"/><geometry><box size=".02 .02 .02"/></geometry></collision></link>
@@ -103,6 +103,16 @@ def main():
         report = dict(result='PASS',mode='emulated_hardware_readonly_teaching',cases=cases)
         args.output.write_text(json.dumps(report,indent=2),encoding='utf-8')
         print(json.dumps(report,indent=2))
+    except Exception:
+        with fixture.lock:
+            now = fixture.get_clock().now().nanoseconds
+            def age(header):
+                return (now-header.stamp.sec*1_000_000_000-header.stamp.nanosec)/1e9
+            print(json.dumps(dict(
+                raw_age=age(fixture.frames[-1][0]) if fixture.frames else None,
+                processed_age=age(fixture.latest_observation[0]) if fixture.latest_observation else None,
+                raw_depth_readers=fixture.depth.get_subscription_count())),file=sys.stderr)
+        raise
     finally:
         executor.shutdown(timeout_sec=5)
         thread.join(timeout=5)
