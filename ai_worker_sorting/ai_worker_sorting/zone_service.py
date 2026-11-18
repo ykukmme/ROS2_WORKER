@@ -12,6 +12,7 @@ from ai_worker_interfaces.srv import ScanZones
 
 from .vision_service import VisionService, stamp_ns
 from .zones import find_tape_regions, validate_quad
+from .observation_source import mark_observation
 
 
 class ZoneService(VisionService):
@@ -37,6 +38,7 @@ class ZoneService(VisionService):
         zones = []
         for index in range(2):
             zone = PlacementZone()
+            mark_observation(zone, self.cfg)
             zone.zone_id, zone.color = f'zone_{index+1}', f'mock_color_{index+1}'
             zone.localized, zone.simulated = True, True
             zone.image_header.stamp = self.get_clock().now().to_msg()
@@ -70,6 +72,7 @@ class ZoneService(VisionService):
                 for index,region in enumerate(regions):
                     polygon = region.polygon
                     zone = PlacementZone()
+                    mark_observation(zone, self.cfg)
                     zone.zone_id, zone.color, zone.image_header = f'zone_{index+1}',region.color,msg.header
                     zone.pixel_boundary.points = [Point32(x=x, y=y, z=0.) for x, y in polygon]
                     try:

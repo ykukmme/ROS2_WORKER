@@ -5,4 +5,5 @@ geometry_msgs/Polygon pixel_boundary
 geometry_msgs/PolygonStamped boundary
 bool localized
 bool simulated
+string source_kind
 string message

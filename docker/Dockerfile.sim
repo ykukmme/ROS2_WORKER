@@ -1,0 +1,43 @@
+# Build scripts/sim_worker.sh first builds the repository's Humble dependency image.
+ARG WORKER_BASE=ros2-worker:humble
+ARG NOVNC_BASE=tiryoh/ros2-desktop-vnc:humble
+FROM ${WORKER_BASE} AS worker_dependencies
+FROM ${NOVNC_BASE}
+USER root
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-venv python3-colcon-common-extensions python3-yaml \
+    ros-humble-vision-msgs ros-humble-cv-bridge ros-humble-message-filters \
+    ros-humble-moveit-msgs ros-humble-control-msgs ros-humble-shape-msgs \
+    ros-humble-rosidl-default-generators ros-humble-rosidl-runtime-py \
+    libegl1 libgl1-mesa-dri && rm -rf /var/lib/apt/lists/*
+COPY --from=worker_dependencies /opt/worker_venv /opt/worker_venv
+COPY --from=worker_dependencies /opt/vendor_ws /opt/vendor_ws
+RUN /opt/worker_venv/bin/python -m pip install --no-cache-dir mujoco==3.5.0 pillow==11.3.0 && \
+    git init /opt/sim-models && \
+    git -C /opt/sim-models remote add origin https://github.com/ROBOTIS-GIT/robotis_mujoco_menagerie.git && \
+    git -C /opt/sim-models fetch --depth 1 origin d8344c0dbe7a00208d0301111523dde65efc174a && \
+    git -C /opt/sim-models checkout --detach FETCH_HEAD
+ENV ROS_DISTRO=humble ROS_DOMAIN_ID=219 ROS_LOCALHOST_ONLY=1 \
+    MUJOCO_GL=egl EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 \
+    WORKER_PYTHON=/opt/worker_venv/bin/python PYTHONUNBUFFERED=1 \
+    WORKER_SIM_MODELS=/opt/sim-models/robotis_ffw WORKER_SIM_DATA=/sim-data
+WORKDIR /opt/worker
+COPY ai_worker_sorting/ai_worker_sorting/__init__.py \
+     ai_worker_sorting/ai_worker_sorting/sim_scene.py \
+     ai_worker_sorting/ai_worker_sorting/sim_physics.py \
+     ai_worker_sorting/ai_worker_sorting/sim_training.py /opt/sim-training/ai_worker_sorting/
+ARG SIM_TRAIN_EPOCHS=25
+RUN PYTHONPATH=/opt/sim-training /opt/worker_venv/bin/python -c \
+    "from pathlib import Path; from ai_worker_sorting.sim_training import train; train(Path('/opt/worker/sim-models'), ${SIM_TRAIN_EPOCHS})" && \
+    rm -rf /opt/worker/sim-models/dataset /opt/worker/sim-models/training /opt/sim-training
+COPY ai_worker_interfaces ./ai_worker_interfaces
+COPY ai_worker_sorting ./ai_worker_sorting
+COPY scripts/build_ros2.sh ./scripts/build_ros2.sh
+COPY docker/sim_entrypoint.sh /opt/sim-entrypoint.sh
+RUN source /opt/ros/humble/setup.bash && source /opt/vendor_ws/install/setup.bash && \
+    bash scripts/build_ros2.sh /opt/sim_ws && mkdir -p /sim-data && \
+    chmod +x /opt/sim-entrypoint.sh
+ENTRYPOINT ["/opt/sim-entrypoint.sh"]
+CMD ["menu"]

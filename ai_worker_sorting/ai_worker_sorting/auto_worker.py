@@ -21,6 +21,7 @@ from .worker_service import WorkerService, DelayedDryRobot
 from .tasks import TaskCanceled
 from .core import Point, in_workspace, pick_and_place
 from .zones import AutoSession, grid_slots, inside, overlap, validate_quad
+from .observation_source import usable_observation
 
 
 class AutoWorker(WorkerService):
@@ -32,17 +33,24 @@ class AutoWorker(WorkerService):
                         home_mode='configured', placement_height_mode='fixed',
                         min_object_height=.01, max_object_height=.25, transport_above_objects=False,
                         tool_below_tcp=0.,class_grasp_offsets='{}',check_camera_footprint=False,
-                        camera_info_topic='/worker_camera/camera_info',geometry_depth_topic='/worker_camera/depth_rect')
+                        camera_info_topic='/worker_camera/camera_info',geometry_depth_topic='/worker_camera/depth_rect',
+                        release_clearance=0., grasp_verification='vision',slot_pitch_extra=0.)
         for key, value in defaults.items():
             self.declare_parameter(key, value)
             self.cfg[key] = self.get_parameter(key).value
         roi = self.cfg['source_roi']
+        if not math.isfinite(self.cfg['release_clearance']) or not 0 <= self.cfg['release_clearance'] <= .03:
+            raise ValueError('Release clearance must be in [0,0.03] metres')
         if len(roi) != 4 or not all(math.isfinite(x) for x in roi) or roi[0] >= roi[2] or roi[1] >= roi[3]:
             raise ValueError('source_roi must be [left,top,right,bottom] in detection pixels')
         if self.cfg['empty_scans'] < 2 or not .05 <= self.cfg['scan_interval'] <= 5:
             raise ValueError('Invalid scan settings')
         self.auto_lock = threading.RLock()
         self.class_offsets = json.loads(self.cfg['class_grasp_offsets'])
+        if self.cfg['grasp_verification'] not in ('vision','physics_contact'):
+            raise ValueError('Unsupported grasp verification mode')
+        if self.cfg['grasp_verification']=='physics_contact' and self.cfg['runtime_mode']!='mujoco':
+            raise ValueError('Physics contact verification is only available in MuJoCo')
         if not isinstance(self.class_offsets,dict) or any(not isinstance(k,str) or not isinstance(v,(int,float)) or not math.isfinite(v) or abs(v)>=.5 for k,v in self.class_offsets.items()):
             raise ValueError('Invalid per-class grasp offsets')
         if self.cfg['check_camera_footprint'] and len(self.class_offsets)!=2:
@@ -158,7 +166,7 @@ class AutoWorker(WorkerService):
                         raise ValueError('Zone frame differs from robot base frame')
                     slots[zone.zone_id] = grid_slots(zone.zone_id,
                         [(p.x,p.y,p.z) for p in zone.boundary.polygon.points], self.cfg['object_size'],
-                        self.cfg['slot_margin'], self.cfg['place_offset'])
+                        self.cfg['slot_margin'], self.cfg['place_offset'],self.cfg['slot_pitch_extra'])
             session = AutoSession(zones.workspace_id, mapping, ordered, slots)
             with self.auto_lock:
                 self.session = session
@@ -201,10 +209,11 @@ class AutoWorker(WorkerService):
                 response.message = 'Overlapping or out-of-workspace placement zones'
                 return response
             if not self.cfg['dry_run']:
-                if not self.cfg['hardware_configured'] or not self.cfg['shared_grasp_verified']:
+                if ((self.cfg['runtime_mode'] == 'hardware' and not self.cfg['hardware_configured'])
+                        or not self.cfg['shared_grasp_verified']):
                     response.message = 'Hardware and shared fixed-grasp profile must be configured for both object types'
                     return response
-                if any(z.simulated for z in session.zones):
+                if any(not usable_observation(z, self.cfg) for z in session.zones):
                     response.message = 'Mock zones cannot be used for hardware motion'
                     return response
             try:
@@ -227,7 +236,7 @@ class AutoWorker(WorkerService):
                 point = self.select_target([obj], obj.class_name)
             except ValueError:
                 continue
-            if not obj.simulated:
+            if usable_observation(obj, self.cfg):
                 points.append((obj,point))
         return points
 
@@ -333,7 +342,7 @@ class AutoWorker(WorkerService):
                     continue
                 last_stamp = stamp
                 objects = self.source_objects(snapshot.objects, session.zones)
-                objects = [o for o in objects if not (o.simulated and o.target_id in session.completed_mock_ids)]
+                objects = [o for o in objects if not (getattr(o, 'source_kind', '') == 'mock' and o.target_id in session.completed_mock_ids)]
                 if any(o.class_name not in session.mapping for o in objects):
                     raise ValueError('NEW_CLASS: mapping remains unchanged; stop and reconfigure')
                 if not objects:
@@ -348,7 +357,7 @@ class AutoWorker(WorkerService):
                     # Bound all recognized obstacles, including ones not picked next.
                     table_z = sum(p.z for z in session.zones for p in z.boundary.polygon.points)/8
                     for candidate in snapshot.objects:
-                        if candidate.localized and not candidate.simulated and candidate.class_name in session.mapping:
+                        if candidate.localized and usable_observation(candidate, self.cfg) and candidate.class_name in session.mapping:
                             self.check_footprint(candidate,snapshot.header,table_z)
                 target = self.select_target([obj], obj.class_name)
                 grasp_offset = self.class_offsets.get(obj.class_name,self.cfg['auto_grasp_offset'])
@@ -360,7 +369,7 @@ class AutoWorker(WorkerService):
                         height = target.z-table_z
                         if not self.cfg['min_object_height']<=height<=self.cfg['max_object_height']:
                             raise ValueError('Object surface height is inconsistent with the table')
-                        release_z = table_z+height+grasp_offset
+                        release_z = table_z+height+grasp_offset+self.cfg['release_clearance']
                         if release_z-self.cfg['tool_below_tcp']<=table_z+.005:
                             raise ValueError('TCP grasp offset would enter the tabletop')
                         reserved.position = Point(reserved.position.x,reserved.position.y,release_z)
@@ -374,15 +383,17 @@ class AutoWorker(WorkerService):
                         raise ValueError('UNEXPECTED_OCCUPANCY: reserved slot is not clear')
                     if live_robot is None:
                         from .robot_factory import make_robot
-                        live_robot = make_robot(self,self.cfg,check,
-                            lambda:self.verify_grasp_observation(obj,target,check))
+                        verifier = (lambda:self.verify_grasp_observation(obj,target,check)) if self.cfg['grasp_verification']=='vision' else None
+                        live_robot = make_robot(self,self.cfg,check,verifier)
                         if self.cfg['home_mode']=='current_tcp':
                             if not hasattr(live_robot,'capture_home'):
                                 raise ValueError('current_tcp home requires a feedback-capable robot backend')
                             home = live_robot.capture_home()
                     # The callback must follow the current object, not the first one.
-                    live_robot.verifier = lambda:self.verify_grasp_observation(obj,target,check)
+                    live_robot.verifier = ((lambda:self.verify_grasp_observation(obj,target,check))
+                                           if self.cfg['grasp_verification']=='vision' else None)
                     robot = live_robot
+                self.robot = robot
                 transport_z = None
                 if self.cfg['transport_above_objects']:
                     transport_z = max(p.z for z in session.zones for p in z.boundary.polygon.points)
@@ -398,7 +409,7 @@ class AutoWorker(WorkerService):
                 with self.auto_lock:
                     reserved.state = 'OCCUPIED'
                     session.placed += 1
-                    if obj.simulated:
+                    if getattr(obj, 'source_kind', '') == 'mock':
                         session.completed_mock_ids.add(obj.target_id)
                 reserved = None
                 completed += 1
@@ -414,16 +425,22 @@ class AutoWorker(WorkerService):
             fault = live_robot is not None and outcome != 'SUCCEEDED'
             if live_robot is not None:
                 try:
+                    if outcome!='SUCCEEDED':
+                        live_robot.cancel()
                     live_robot.destroy()
                 except Exception as exc:
                     outcome, message, fault = 'FAILED',f'Robot cleanup failed: {exc}',True
                 if task.cancel.is_set():
-                    outcome, message, fault = 'FAILED','Cancellation; inspect controller state',True
+                    if self.cfg['runtime_mode']=='mujoco' and getattr(live_robot,'stop_confirmed',False):
+                        outcome, message, fault = 'CANCELED','Simulation stopped; hold confirmed by feedback',False
+                    else:
+                        outcome, message, fault = 'FAILED','Cancellation; inspect controller state',True
             if reserved is not None:
                 with self.auto_lock:
                     reserved.state = 'UNKNOWN'
             self.store.finish(task, outcome, message, fault=fault)
             self.publish(task)
+            self.robot = None
 
 
 def main(args=None):

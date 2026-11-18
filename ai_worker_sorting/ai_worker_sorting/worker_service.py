@@ -13,6 +13,7 @@ from ai_worker_interfaces.srv import SortOnce, TaskStatus, CancelTask, DetectObj
 
 from .core import Point, DryRobot, in_workspace, pick_and_place
 from .tasks import TaskStore, TaskCanceled
+from .observation_source import usable_observation
 
 
 class DelayedDryRobot(DryRobot):
@@ -40,7 +41,7 @@ class DelayedDryRobot(DryRobot):
 class WorkerService(Node):
     def __init__(self, parameter_overrides=None):
         super().__init__('worker_service', parameter_overrides=parameter_overrides)
-        defaults = dict(dry_run=True, hardware_configured=False, base_frame='base_link',
+        defaults = dict(dry_run=True, hardware_configured=False, runtime_mode='hardware', base_frame='base_link',
                         target_max_age=1.0, min_confidence=0.8, service_timeout=3.0,
                         task_timeout=600.0, dry_step_delay=0.15, history_capacity=100,
                         supported_classes=['box', 'bottle'],
@@ -90,7 +91,13 @@ class WorkerService(Node):
         self.create_service(SortOnce, '/worker/sort_once', self.sort_once)
         self.create_service(TaskStatus, '/worker/task_status', self.task_status)
         self.create_service(CancelTask, '/worker/cancel_task', self.cancel_task)
-        if not self.cfg['dry_run'] and not self.cfg['hardware_configured']:
+        if self.cfg['runtime_mode'] not in ('hardware', 'mujoco'):
+            raise ValueError('Unsupported runtime mode')
+        if (self.cfg['runtime_mode'] == 'mujoco') != (self.cfg['robot_backend'] == 'mujoco'):
+            raise ValueError('MuJoCo runtime requires its dedicated robot backend')
+        if self.cfg['runtime_mode'] == 'mujoco' and self.cfg['hardware_configured']:
+            raise ValueError('Simulation must not claim hardware configuration')
+        if not self.cfg['dry_run'] and self.cfg['runtime_mode'] == 'hardware' and not self.cfg['hardware_configured']:
             raise ValueError('Real motion requires verified hardware configuration')
         self.get_logger().info(f"Worker services ready; dry_run={self.cfg['dry_run']}")
 
@@ -166,7 +173,7 @@ class WorkerService(Node):
             age = (self.get_clock().now().nanoseconds-stamp)/1e9
             point = Point(p.x, p.y, p.z)
             if (obj.class_name == target_class and obj.localized
-                    and (self.cfg['dry_run'] or not obj.simulated)
+                    and usable_observation(obj, self.cfg)
                     and math.isfinite(obj.confidence) and self.cfg['min_confidence'] <= obj.confidence <= 1
                     and header.frame_id == self.cfg['base_frame'] and stamp > 0
                     and 0 <= age <= self.cfg['target_max_age']

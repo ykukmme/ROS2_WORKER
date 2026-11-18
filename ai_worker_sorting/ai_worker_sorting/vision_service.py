@@ -18,6 +18,7 @@ from ai_worker_interfaces.msg import DetectedObject
 from ai_worker_interfaces.srv import DetectObjects
 
 from .locator import depth_surface, transform_point
+from .observation_source import mark_observation
 
 
 def stamp_ns(header):
@@ -34,10 +35,12 @@ class VisionService(Node):
                         depth_topic='/camera/aligned_depth_to_color/image_raw',
                         camera_info_topic='/camera/color/camera_info',
                         max_age=1.0, sync_slop=0.06, scale_16u=0.001,
-                        min_depth=0.1, max_depth=2.0, stop_file='')
+                        min_depth=0.1, max_depth=2.0, stop_file='', observation_source='hardware')
         for key, value in defaults.items():
             self.declare_parameter(key, value)
         self.cfg = {key: self.get_parameter(key).value for key in defaults}
+        if self.cfg['observation_source'] not in ('hardware', 'mujoco'):
+            raise ValueError('Unsupported observation source')
         if not 0 < self.cfg['max_age'] <= 10 or not 0 <= self.cfg['sync_slop'] <= .2:
             raise ValueError('Invalid observation age or synchronization tolerance')
         self.lock = threading.Lock()
@@ -90,6 +93,7 @@ class VisionService(Node):
         obj = DetectedObject()
         obj.class_name, obj.confidence = target_class, 1.0
         obj.localized, obj.simulated = True, True
+        mark_observation(obj, self.cfg)
         obj.surface_pose.header.frame_id = self.cfg['base_frame']
         stamp = self.get_clock().now()-Duration(seconds=self.cfg['mock_age'])
         obj.surface_pose.header.stamp = stamp.to_msg()
@@ -158,6 +162,7 @@ class VisionService(Node):
             if not matches:
                 continue
             obj = DetectedObject()
+            mark_observation(obj, self.cfg)
             obj.target_id = f'{stamp_ns(msg.header)}-{index}'
             best = max(matches, key=lambda h: h.score)
             obj.class_name, obj.confidence = best.class_id, best.score

@@ -29,5 +29,6 @@ setup(
         'worker_cli = ai_worker_sorting.worker_cli:main',
         'configure_auto = ai_worker_sorting.configure_auto:main',
         'terminal_menu = ai_worker_sorting.terminal_menu:main',
+        'sim_runtime = ai_worker_sorting.sim_runtime:main',
     ]},
 )

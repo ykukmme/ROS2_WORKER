@@ -1,0 +1,21 @@
+services:
+  simulation:
+    image: ros2-worker:humble-sim
+    init: true
+    stdin_open: true
+    tty: true
+    ports:
+      - "127.0.0.1:6080:80"
+    shm_size: 1gb
+    volumes:
+      - simulation-data:/sim-data
+    environment:
+      ROS_DOMAIN_ID: "219"
+      ROS_LOCALHOST_ONLY: "1"
+    networks:
+      - simulation
+volumes:
+  simulation-data:
+networks:
+  simulation:
+    driver: bridge

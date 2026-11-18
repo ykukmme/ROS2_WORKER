@@ -6,4 +6,5 @@ vision_msgs/BoundingBox2D bbox
 geometry_msgs/PoseStamped surface_pose
 bool localized
 bool simulated
+string source_kind
 string localization_message

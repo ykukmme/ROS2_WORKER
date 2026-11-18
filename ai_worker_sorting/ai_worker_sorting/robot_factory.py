@@ -3,6 +3,9 @@
 
 def make_robot(node, cfg, check, grasp_verifier=None):
     backend = cfg.get('robot_backend', 'moveit')
+    if backend == 'mujoco':
+        from .mujoco_robot import MujocoRobot
+        return MujocoRobot(node, cfg, check, grasp_verifier)
     if backend == 'robotis_movel':
         from .robotis_robot import RobotisMoveLRobot
         return RobotisMoveLRobot(node, cfg, check, grasp_verifier)

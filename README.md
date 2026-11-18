@@ -5,6 +5,8 @@ ROBOTIS AI WORKER용 RGB-D·YOLO 물건 분류 프로그램.
 테이프 색은 지정하지 않는다. 서로 다른 두 색의 닫힌 구역을 영상에서 자동으로 찾아 배정한다.
 기본 공개 배포는 ROS2 Jazzy / Ubuntu 24.04 / Python 3.12 / x86_64 CPU다.
 
+실물 없이 기존 Humble/noVNC 환경에서 테스트하려면 [시뮬레이션 실행 가이드](SIMULATION.md)를 따른다. 공식 모델·가상 카메라·YOLO·물리 집기 제어를 별도 Docker 이미지에 포함한다.
+
 ## Ubuntu에서 실행
 
 **처음 사용한다면 [이미지 다운로드부터 첫 실제 분류까지](docker/SHARED_PC.md)를 순서대로 따른다.**

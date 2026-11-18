@@ -3,7 +3,7 @@ import time
 from rcl_interfaces.srv import GetParameters
 
 
-def verify_controller(node, cfg, spin=False):
+def verify_controller(node, cfg, spin=False, expected_kind=None):
     import rclpy
     client = node.create_client(GetParameters, cfg['controller_node'].rstrip('/')+'/get_parameters')
     try:
@@ -11,6 +11,8 @@ def verify_controller(node, cfg, spin=False):
             raise RuntimeError('Cyclo controller parameter service unavailable')
         names = ['l_gripper_name','left_movel_topic','left_raw_traj_topic',
                  'left_gripper_joint','joint_states_topic']
+        if expected_kind:
+            names.append('controller_kind')
         future = client.call_async(GetParameters.Request(names=names))
         deadline = time.monotonic()+3
         while not future.done() and time.monotonic()<deadline:
@@ -24,6 +26,8 @@ def verify_controller(node, cfg, spin=False):
         if len(values)!=len(names) or any(v.type!=4 or not v.string_value for v in values):
             raise RuntimeError('Unsupported Cyclo controller parameters')
         actual = dict(zip(names,[v.string_value for v in values]))
+        if expected_kind and actual['controller_kind'] != expected_kind:
+            raise RuntimeError('Controller runtime kind does not match')
         expected = dict(left_movel_topic=cfg['movel_topic'],
                         left_raw_traj_topic=cfg['gripper_trajectory_topic'],
                         left_gripper_joint=cfg['gripper_joint'],joint_states_topic=cfg['joint_states_topic'])

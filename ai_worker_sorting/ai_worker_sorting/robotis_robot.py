@@ -38,8 +38,7 @@ def compose_quaternion(a,b):
 class RobotisMoveLRobot:
     def __init__(self, node, cfg, check, grasp_verifier=None):
         self.node, self.cfg, self.check = node,cfg,check
-        if not cfg['hardware_configured'] or not cfg['tool_link']:
-            raise ValueError('Robot hardware configuration and measured TCP link are required')
+        self.validate_runtime(cfg)
         q = cfg['tool_quaternion']
         if len(q)!=4 or not all(math.isfinite(x) for x in q) or abs(sum(x*x for x in q)-1)>1e-3:
             raise ValueError('TCP orientation must be a normalized XYZW quaternion')
@@ -83,6 +82,14 @@ class RobotisMoveLRobot:
             self.joint_received = time.monotonic()
             self.joint_stamp = stamp
 
+    def validate_runtime(self, cfg):
+        if not cfg['hardware_configured'] or not cfg['tool_link']:
+            raise ValueError('Robot hardware configuration and measured TCP link are required')
+
+    def verify_contract(self):
+        from .controller_contract import verify_controller
+        verify_controller(self.node, self.cfg)
+
     def current_pose(self):
         tf = self.tf.lookup_transform(self.cfg['base_frame'],self.cfg['tool_link'],Time())
         stamp = tf.header.stamp.sec*1_000_000_000+tf.header.stamp.nanosec
@@ -106,8 +113,7 @@ class RobotisMoveLRobot:
 
     def wait_ready(self,publisher):
         if not self.contract_verified:
-            from .controller_contract import verify_controller
-            verify_controller(self.node,self.cfg)
+            self.verify_contract()
             self.contract_verified = True
         deadline = time.monotonic()+self.cfg['action_timeout']
         while time.monotonic()<deadline:

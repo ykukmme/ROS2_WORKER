@@ -176,25 +176,31 @@ class Slot:
     state: str = 'EMPTY'
 
 
-def grid_slots(zone_id, polygon, object_size=.06, margin=.01, place_offset=.05):
+def grid_slots(zone_id, polygon, object_size=.06, margin=.01, place_offset=.05, pitch_extra=0.):
     validate_quad(polygon)
     if not all(math.isfinite(v) for p in polygon for v in p) or any(len(p) != 3 for p in polygon):
         raise ValueError('Zone requires finite XYZ corners')
     if max(p[2] for p in polygon)-min(p[2] for p in polygon) > .015:
         raise ValueError('Only horizontal tabletop zones are supported')
-    if not all(math.isfinite(v) for v in (object_size, margin, place_offset)) or object_size <= 0 or margin < 0:
+    if not all(math.isfinite(v) for v in (object_size, margin, place_offset, pitch_extra)) or object_size <= 0 or margin < 0 or not 0<=pitch_extra<=.05:
         raise ValueError('Invalid footprint, clearance or placement offset')
     radius = object_size/2+margin
-    pitch = 2*radius
+    pitch = 2*radius+pitch_extra
     x0, x1 = min(p[0] for p in polygon), max(p[0] for p in polygon)
     y0, y1 = min(p[1] for p in polygon), max(p[1] for p in polygon)
     if max(x1-x0, y1-y0) > 3:
         raise ValueError('Zone dimensions exceed prototype limits')
     slots = []
     z = sum(p[2] for p in polygon)/4+place_offset
-    for ix in range(max(0, int((x1-x0)/pitch)+1)):
-        for iy in range(max(0, int((y1-y0)/pitch)+1)):
-            x, y = x0+radius+ix*pitch, y0+radius+iy*pitch
+    def count(span):
+        return max(0, 1+math.floor((span-2*radius+1e-10)/pitch))
+    nx, ny = count(x1-x0), count(y1-y0)
+    # Center the grid: anchoring at the bounding-box corner can reject every
+    # slot in a slightly skewed measured rectangle, despite ample room inside.
+    for ix in range(nx):
+        for iy in range(ny):
+            x = (x0+x1)/2+(ix-(nx-1)/2)*pitch
+            y = (y0+y1)/2+(iy-(ny-1)/2)*pitch
             if all(inside((x+dx, y+dy), polygon)
                    for dx, dy in ((-radius,-radius), (radius,-radius), (radius,radius), (-radius,radius))):
                 slots.append(Slot(f'{zone_id}-{len(slots)}', Point(x, y, z)))

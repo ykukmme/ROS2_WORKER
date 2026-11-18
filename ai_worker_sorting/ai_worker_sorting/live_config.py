@@ -16,6 +16,8 @@ def validate_live_config(path):
         except (TypeError,KeyError):
             raise ValueError(f'Missing live configuration section: {name}') from None
     worker = cfg['worker_service']
+    if worker.get('runtime_mode','hardware') != 'hardware':
+        raise ValueError('Simulation profiles cannot use the hardware launch')
     offsets = json.loads(worker.get('class_grasp_offsets','{}'))
     if not isinstance(offsets,dict) or any(not isinstance(k,str) or not isinstance(v,(int,float)) or not math.isfinite(v) or abs(v)>=.5 for k,v in offsets.items()):
         raise ValueError('Invalid per-class grasp offsets')
@@ -40,6 +42,8 @@ def validate_live_config(path):
     if not worker.get('base_frame') or not worker.get('controller_frame'):
         raise ValueError('Robot and controller coordinate frames are required')
     for name in ('vision_service','zone_service'):
+        if cfg[name].get('observation_source','hardware') != 'hardware':
+            raise ValueError('Hardware launch cannot consume simulation observations')
         if cfg[name].get('mock_mode') is not False or cfg[name].get('enable_depth') is not True or cfg[name].get('calibrated') is not True:
             raise ValueError(f'{name} must use measured calibrated RGB-D, not mock data')
         if cfg[name].get('base_frame')!=worker.get('base_frame'):

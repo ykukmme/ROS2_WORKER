@@ -202,6 +202,7 @@ def main():
         result = original_zones()
         for zone in result:
             zone.simulated = False
+            zone.source_kind = 'hardware'
         return result
     zones.mock_zones = measured_fixture_zones
     values = dict(dry_run=False,hardware_configured=True,shared_grasp_verified=True,

@@ -12,6 +12,16 @@ def tape_image(colors=((0,0,255),(255,0,0)),background=220):
 
 
 class ZoneTests(unittest.TestCase):
+    def test_one_slot_does_not_require_a_trailing_pitch_gap(self):
+        polygon = [(0.,0.,.72),(.085,0.,.72),(.085,.085,.72),(0.,.085,.72)]
+        self.assertEqual(len(grid_slots('zone_1',polygon,.06,.01,pitch_extra=.01)),1)
+
+    def test_small_rotated_zone_keeps_usable_central_slot(self):
+        polygon = [(0.,.003,.72),(.132,0.,.72),(.135,.132,.72),(.003,.135,.72)]
+        slots = grid_slots('zone_1',polygon,.065,.006)
+        self.assertEqual(len(slots),1)
+        self.assertAlmostEqual(slots[0].position.x,.0675)
+
     def test_closed_color_tape_interiors_detected(self):
         zones = tape_zones(tape_image())
         self.assertEqual(set(zones), {'zone_1','zone_2'})
