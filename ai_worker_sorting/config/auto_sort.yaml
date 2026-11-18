@@ -11,7 +11,7 @@ zone_service:
   ros__parameters:
     mock_mode: false
     image_topic: /laptop_camera/image_raw
-    zone_colors: [red, blue]
+    zone_colors: [auto]
     min_zone_area: 1500.0
     enable_depth: false
     calibrated: false

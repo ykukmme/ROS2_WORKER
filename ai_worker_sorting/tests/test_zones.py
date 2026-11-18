@@ -1,22 +1,93 @@
 import unittest
 import cv2
 import numpy as np
-from ai_worker_sorting.zones import tape_zones, grid_slots, AutoSession, inside, overlap
+from ai_worker_sorting.zones import tape_zones, find_tape_regions, grid_slots, AutoSession, inside, overlap
 
 
-def tape_image():
-    image = np.full((360, 640, 3), 220, dtype=np.uint8)
-    cv2.rectangle(image, (400,20), (620,160), (0,0,255), 8)
-    cv2.rectangle(image, (400,200), (620,340), (255,0,0), 8)
+def tape_image(colors=((0,0,255),(255,0,0)),background=220):
+    image = np.full((360, 640, 3), background, dtype=np.uint8)
+    cv2.rectangle(image, (400,20), (620,160), colors[0], 8)
+    cv2.rectangle(image, (400,200), (620,340), colors[1], 8)
     return image
 
 
 class ZoneTests(unittest.TestCase):
     def test_closed_color_tape_interiors_detected(self):
         zones = tape_zones(tape_image())
-        self.assertEqual(set(zones), {'red','blue'})
-        self.assertTrue(inside((500,90), zones['red']))
-        self.assertFalse(inside((100,90), zones['red']))
+        self.assertEqual(set(zones), {'zone_1','zone_2'})
+        self.assertTrue(inside((500,90), zones['zone_1']))
+        self.assertFalse(inside((100,90), zones['zone_1']))
+
+    def test_colors_outside_old_palette_are_discovered(self):
+        regions = find_tape_regions(tape_image(((0,128,255),(200,0,180))))
+        self.assertEqual([r.color for r in regions],['#ff8000','#b400c8'])
+
+    def test_colors_across_hue_range_need_no_configuration(self):
+        for hues in ((8,95),(25,145),(43,165),(60,110),(175,80)):
+            hsv = np.array([[[h,220,230] for h in hues]],dtype=np.uint8)
+            colors = [tuple(map(int,p)) for p in cv2.cvtColor(hsv,cv2.COLOR_HSV2BGR)[0]]
+            with self.subTest(hues=hues):
+                self.assertEqual(len(tape_zones(tape_image(colors))),2)
+
+    def test_neutral_tape_with_background_contrast_is_detected(self):
+        for colors in (((0,0,0),(255,255,255)),((90,90,90),(255,255,255))):
+            with self.subTest(colors=colors):
+                self.assertEqual(len(tape_zones(tape_image(colors))),2)
+
+    def test_two_regions_of_same_color_are_rejected(self):
+        with self.assertRaisesRegex(ValueError,'colors are too similar'):
+            tape_zones(tape_image(((0,0,255),(0,0,255))))
+
+    def test_hue_wrap_does_not_create_two_different_reds(self):
+        hsv = np.array([[[179,240,230],[1,240,230]]],dtype=np.uint8)
+        colors = [tuple(map(int,p)) for p in cv2.cvtColor(hsv,cv2.COLOR_HSV2BGR)[0]]
+        with self.assertRaisesRegex(ValueError,'colors are too similar'):
+            tape_zones(tape_image(colors))
+
+    def test_three_different_rectangles_are_not_silently_reduced_to_two(self):
+        image = tape_image()
+        cv2.rectangle(image,(20,20),(200,160),(0,255,0),8)
+        with self.assertRaisesRegex(ValueError,'found 3'):
+            tape_zones(image)
+
+    def test_unrelated_color_patches_do_not_become_zones(self):
+        image = tape_image()
+        cv2.rectangle(image,(20,20),(200,160),(0,255,255),-1)
+        cv2.circle(image,(150,260),40,(200,0,180),-1)
+        self.assertEqual(len(tape_zones(image)),2)
+
+    def test_clipped_tape_border_is_rejected(self):
+        image = tape_image()
+        image[:185] = 220
+        cv2.rectangle(image,(400,0),(620,160),(0,0,255),8)
+        with self.assertRaises(ValueError):
+            tape_zones(image)
+
+    def test_low_background_contrast_is_rejected(self):
+        with self.assertRaises(ValueError):
+            tape_zones(tape_image(((220,220,220),(0,0,0))))
+
+    def test_region_numbers_follow_previous_positions_not_color_brightness(self):
+        image = tape_image(((0,128,255),(200,0,180)))
+        initial = find_tape_regions(image)
+        previous = [np.mean(r.polygon,axis=0).tolist() for r in reversed(initial)]
+        regions = find_tape_regions(image,previous_centers=previous)
+        self.assertTrue(inside((500,270),regions[0].polygon))
+        self.assertTrue(inside((500,90),regions[1].polygon))
+
+    def test_mild_brightness_and_pixel_noise_keep_two_regions(self):
+        image = tape_image(((0,128,255),(200,0,180)))
+        noise = np.random.default_rng(7).integers(-3,4,size=image.shape)
+        image = np.clip(image.astype(float)*.85+noise,0,255).astype(np.uint8)
+        regions = find_tape_regions(image)
+        self.assertEqual(len(regions),2)
+        self.assertTrue(inside((500,90),regions[0].polygon))
+
+    def test_invalid_image_and_area_rejected(self):
+        for image,area in ((np.empty((0,0,3),np.uint8),1500),(tape_image().astype(float),1500),
+                           (tape_image(),0),(tape_image(),float('nan'))):
+            with self.subTest(area=area),self.assertRaises(ValueError):
+                tape_zones(image,area)
 
     def test_missing_open_and_duplicate_colors_rejected(self):
         image = tape_image()

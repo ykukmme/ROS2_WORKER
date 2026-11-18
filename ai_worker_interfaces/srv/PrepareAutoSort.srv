@@ -3,4 +3,5 @@ bool success
 string session_id
 string workspace_id
 ai_worker_interfaces/SortRule[] rules
+ai_worker_interfaces/PlacementZone[] zones
 string message

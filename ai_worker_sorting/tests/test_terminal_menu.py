@@ -29,7 +29,10 @@ class Backend:
         self.future = Future()
     def request(self,name,**kwargs):
         if name=='prepare_auto_sort':
-            return dict(success=True,session_id='session',rules=[dict(zone_id='red_zone'),dict(zone_id='blue_zone')])
+            zones = [dict(zone_id=f'zone_{i+1}',color=color,
+                          pixel_boundary=dict(points=[dict(x=x,y=y+i*180) for x,y in ((400,20),(620,20),(620,160),(400,160))]))
+                     for i,color in enumerate(('#ff8000','#b400c8'))]
+            return dict(success=True,session_id='session',rules=[dict(zone_id='zone_1'),dict(zone_id='zone_2')],zones=zones)
         if name=='task_status':
             return dict(found=True,state=self.state,stage='TRANSFER')
         if name=='session_status':
@@ -85,6 +88,13 @@ class MenuTests(unittest.TestCase):
         self.assertEqual((menu.session,menu.task),('session','task'))
         self.assertEqual(self.backend.starts,1)
         self.assertTrue(any('첫 번째 종류' in line for line in self.output))
+
+    def test_detected_colors_and_positions_are_shown_without_color_input(self):
+        menu = self.menu()
+        menu.prepare()
+        self.assertTrue(any('zone_1' in line and '#ff8000' in line and '위쪽' in line for line in self.output))
+        self.assertTrue(any('zone_2' in line and '#b400c8' in line and '아래쪽' in line for line in self.output))
+        self.assertEqual(self.backend.starts,0)
 
     def test_unknown_start_blocks_repeat_and_process_shutdown(self):
         menu = self.menu(['2','y'])

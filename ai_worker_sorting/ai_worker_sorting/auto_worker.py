@@ -164,6 +164,7 @@ class AutoWorker(WorkerService):
                 self.session = session
             response.success, response.session_id, response.workspace_id = True, session.session_id, session.workspace_id
             response.rules = self.rules(session)
+            response.zones = session.zones
             response.message = 'Assignment frozen; 3D localization and grasp checks are still required before motion'
         except Exception as exc:
             response.message = str(exc)

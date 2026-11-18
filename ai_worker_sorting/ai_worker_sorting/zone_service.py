@@ -11,18 +11,18 @@ from ai_worker_interfaces.msg import PlacementZone
 from ai_worker_interfaces.srv import ScanZones
 
 from .vision_service import VisionService, stamp_ns
-from .zones import tape_zones, validate_quad
+from .zones import find_tape_regions, validate_quad
 
 
 class ZoneService(VisionService):
     def __init__(self, parameter_overrides=None):
         super().__init__(parameter_overrides, node_name='zone_service', expose_service=False)
         for key, value in dict(image_topic='/laptop_camera/image_raw',
-                               zone_colors=['red', 'blue'], min_zone_area=1500.).items():
+                               zone_colors=['auto'], min_zone_area=1500.).items():
             self.declare_parameter(key, value)
             self.cfg[key] = self.get_parameter(key).value
-        if len(set(self.cfg['zone_colors'])) != 2:
-            raise ValueError('Configure exactly two different tape colors')
+        # Accept old YAML parameters, but never restrict detection to saved color names.
+        self.zone_centers = None
         self.image = None
         self.image_sub = self.create_subscription(Image, self.cfg['image_topic'], self.on_image,
                                                   qos_profile_sensor_data)
@@ -35,9 +35,9 @@ class ZoneService(VisionService):
 
     def mock_zones(self):
         zones = []
-        for index, color in enumerate(sorted(self.cfg['zone_colors'])):
+        for index in range(2):
             zone = PlacementZone()
-            zone.zone_id, zone.color = color+'_zone', color
+            zone.zone_id, zone.color = f'zone_{index+1}', f'mock_color_{index+1}'
             zone.localized, zone.simulated = True, True
             zone.image_header.stamp = self.get_clock().now().to_msg()
             zone.image_header.frame_id = 'mock_camera_optical'
@@ -66,10 +66,11 @@ class ZoneService(VisionService):
                 if stamp_ns(msg.header) <= 0 or not 0 <= age <= self.cfg['max_age']:
                     raise ValueError('Zone image is stale')
                 frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8').copy()
-                polygons = tape_zones(frame, self.cfg['zone_colors'], self.cfg['min_zone_area'])
-                for color, polygon in sorted(polygons.items()):
+                regions = find_tape_regions(frame,self.cfg['min_zone_area'],self.zone_centers)
+                for index,region in enumerate(regions):
+                    polygon = region.polygon
                     zone = PlacementZone()
-                    zone.zone_id, zone.color, zone.image_header = color+'_zone', color, msg.header
+                    zone.zone_id, zone.color, zone.image_header = f'zone_{index+1}',region.color,msg.header
                     zone.pixel_boundary.points = [Point32(x=x, y=y, z=0.) for x, y in polygon]
                     try:
                         # Inset corners to sample the table inside the tape, not its edge.
@@ -94,7 +95,8 @@ class ZoneService(VisionService):
                     response.zones.append(zone)
                     contour = np.array(polygon, dtype=np.int32)
                     cv2.polylines(frame, [contour], True, (0,255,0), 2)
-                    cv2.putText(frame, color, tuple(contour[0]), cv2.FONT_HERSHEY_SIMPLEX, .6, (255,255,255), 2)
+                    cv2.putText(frame, zone.zone_id+' '+zone.color, tuple(contour[0]), cv2.FONT_HERSHEY_SIMPLEX, .6, (255,255,255), 2)
+                self.zone_centers = [np.mean(region.polygon,axis=0).tolist() for region in regions]
                 overlay = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
                 overlay.header = msg.header
                 self.overlay.publish(overlay)

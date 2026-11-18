@@ -116,7 +116,7 @@ def main():
             'rgbd_detector':{'ros__parameters':dict(weights=str(args.weights.resolve()),device=args.device,
                 confidence=.8,image_topic='/worker_camera/image_rect')},
             'vision_service':{'ros__parameters':dict(common)},
-            'zone_service':{'ros__parameters':dict(common,image_topic='/worker_camera/image_rect',zone_colors=['red','blue'])},
+            'zone_service':{'ros__parameters':dict(common,image_topic='/worker_camera/image_rect',zone_colors=['auto'])},
             'worker_service':{'ros__parameters':dict(dry_run=False,hardware_configured=True,shared_grasp_verified=True,
                 robot_backend='robotis_movel',base_frame=args.base_frame,tool_link=args.tool_link,
                 controller_frame=args.controller_frame,

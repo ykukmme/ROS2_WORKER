@@ -15,6 +15,7 @@ from rclpy.executors import MultiThreadedExecutor
 from ai_worker_sorting.core import Point
 from ai_worker_sorting.zone_service import ZoneService
 from ai_worker_sorting.rgbd_input import AlignedRGBDInput
+from ai_worker_interfaces.srv import ScanZones
 from ros_live_smoke import ControllerFixture,until
 
 
@@ -26,6 +27,7 @@ def main():
     cv2.setNumThreads(1)
     rclpy.init(args=[])
     fixture = ControllerFixture(camera_period=.1)
+    fixture.tape_colors = ((0,128,255),(200,0,180))
     fixture.declare_parameter('robot_description','''<robot name="test_hand">
 <link name="live_test_tcp"/>
 <link name="finger"><collision><origin xyz="0 0 .01"/><geometry><box size=".02 .02 .02"/></geometry></collision></link>
@@ -35,14 +37,10 @@ def main():
     for obj in fixture.objects:
         p = obj['point']
         obj['pixel'] = (320+500*(p.x-.4)/(1-p.z),240-500*p.y/(1-p.z))
-    zones = ZoneService(parameter_overrides=[Parameter('mock_mode',value=True),Parameter('base_frame',value='live_test_base')])
-    original = zones.mock_zones
-    def observed_zones():
-        result = original()
-        for zone in result:
-            zone.simulated = False
-        return result
-    zones.mock_zones = observed_zones
+    zones = ZoneService(parameter_overrides=[Parameter(k,value=v) for k,v in dict(
+        mock_mode=False,enable_depth=True,calibrated=True,base_frame='live_test_base',
+        image_topic='/worker_camera/image_rect',depth_topic='/worker_camera/depth_rect',
+        camera_info_topic='/worker_camera/camera_info',zone_colors=['red','blue']).items()])
     rgbd = AlignedRGBDInput(parameter_overrides=[Parameter('color_topic',value='/live_test/color'),
         Parameter('depth_topic',value='/live_test/depth'),Parameter('camera_info_topic',value='/live_test/info')])
     executor = MultiThreadedExecutor(num_threads=6)
@@ -52,7 +50,21 @@ def main():
     thread.start()
     cases = []
     try:
-        until(lambda:fixture.latest_observation is not None,'Teaching camera frame missing')
+        until(lambda:fixture.latest_observation is not None and zones.image is not None and
+              bool(zones.depths) and bool(zones.infos),'Teaching camera frame missing')
+        client = fixture.create_client(ScanZones,'/workspace/scan_zones')
+        try:
+            assert client.wait_for_service(timeout_sec=5)
+            future = client.call_async(ScanZones.Request())
+            until(future.done,'Automatic tape service did not respond')
+            observed = future.result()
+            assert observed.success,observed.message
+            assert {z.color for z in observed.zones}=={'#ff8000','#b400c8'}
+            assert [z.zone_id for z in observed.zones]==['zone_1','zone_2']
+            assert all(z.localized and not z.simulated for z in observed.zones)
+        finally:
+            fixture.destroy_client(client)
+        cases.append('real RGB-D tape service discovers unconfigured colors even with an old red/blue profile')
         with tempfile.TemporaryDirectory() as directory:
             state,profile = Path(directory)/'teach.local.yaml',Path(directory)/'live.local.yaml'
             def invoke(stage,*options,expected=0):
@@ -94,6 +106,7 @@ def main():
             fixture.quaternion = [-math.cos(.005),0.,math.sin(.005),0.]
             invoke('write','--output',str(profile))
             params = yaml.safe_load(profile.read_text())['worker_service']['ros__parameters']
+            assert yaml.safe_load(profile.read_text())['zone_service']['ros__parameters']['zone_colors']==['auto']
             assert abs(sum(a*b for a,b in zip(params['tool_quaternion'],data['orientation'])))>1-1e-10
             assert params['check_camera_footprint'] is True
             assert set(json.loads(params['class_grasp_offsets']))=={'can','cup'}

@@ -17,6 +17,7 @@ import time
 from types import SimpleNamespace
 
 import numpy as np
+import cv2
 import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -139,7 +140,10 @@ class ControllerFixture(Node):
         info.p = [500.,0.,320.,0.,0.,500.,240.,0.,0.,0.,1.,0.]
         info.d,info.distortion_model = [0.]*5,'plumb_bob'
         self.info.publish(info)
-        color = self.bridge.cv2_to_imgmsg(np.full((480,640,3),180,dtype=np.uint8),encoding='bgr8')
+        color_pixels = np.full((480,640,3),180,dtype=np.uint8)
+        for tape_color,top in zip(getattr(self,'tape_colors',()),(70,300)):
+            cv2.rectangle(color_pixels,(350,top),(460,top+110),tape_color,8)
+        color = self.bridge.cv2_to_imgmsg(color_pixels,encoding='bgr8')
         depth_pixels = np.full((480,640),900,dtype=np.uint16)
         for obj in objects:
             u,v = obj['pixel']

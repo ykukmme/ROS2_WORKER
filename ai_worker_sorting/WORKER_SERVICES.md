@@ -8,7 +8,7 @@
 
 | 서비스 | 요청 | 주요 응답 |
 |---|---|---|
-| `/worker/prepare_auto_sort` | 빈 요청 | `success`, `session_id`, `workspace_id`, `rules`, `message` |
+| `/worker/prepare_auto_sort` | 빈 요청 | `success`, `session_id`, `workspace_id`, `rules`, `zones`, `message` |
 | `/worker/start_task` | `session_id`, `max_objects` | `accepted`, `task_id`, `message` |
 | `/worker/task_status` | `task_id` | `found`, `state`, `stage`, `message` |
 | `/worker/session_status` | `session_id` | `found`, `workspace_id`, `rules`, `placed_count`, `slots_json`, `message` |
@@ -17,6 +17,8 @@
 타입은 순서대로 `ai_worker_interfaces/srv/PrepareAutoSort`, `StartTask`, `TaskStatus`, `SessionStatus`, `CancelTask`다.
 `max_objects=0`은 남은 물건 전체다. 한 번에 한 작업만 접수한다.
 좌표·종류·구역·교시·제어기 계약을 검사하고 조건을 충족하지 못하면 동작을 거부한다.
+`zones`는 배정과 같은 관측에서 얻은 구역 정보다. `zone_id`·감지 색상(`color`, RGB hex)·영상/로봇 경계를 포함한다.
+색 입력 없이 두 테이프 색을 검출한다. 직접 만든 서비스 클라이언트는 `zones`가 추가된 최신 인터페이스로 다시 빌드한다.
 
 `accepted=true`는 접수 결과이며 완료가 아니다.
 상태는 `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED`다.

@@ -199,6 +199,23 @@ class TerminalMenu:
             raise RuntimeError(result['message'])
         self.session,self.rules = result['session_id'],result['rules']
         self.show('인식한 두 종류와 목적 구역을 확인했습니다.')
+        zones = result.get('zones',[])
+        centers = []
+        for zone in zones:
+            points = zone['pixel_boundary']['points']
+            centers.append([sum(p[axis] for p in points)/len(points) for axis in ('x','y')])
+        for index,zone in enumerate(zones):
+            color,swatch = zone['color'],''
+            if len(color)==7 and color.startswith('#') and all(c in '0123456789abcdefABCDEF' for c in color[1:]):
+                if sys.stdout.isatty():
+                    r,g,b = [int(color[i:i+2],16) for i in (1,3,5)]
+                    swatch = f'\x1b[48;2;{r};{g};{b}m  \x1b[0m '
+            position = ''
+            if len(centers)==2:
+                dx,dy = [centers[index][axis]-centers[1-index][axis] for axis in (0,1)]
+                side = ('왼쪽' if dx<0 else '오른쪽') if abs(dx)>abs(dy) else ('위쪽' if dy<0 else '아래쪽')
+                position = ', 화면 '+side
+            self.show(f"{zone['zone_id']}: {swatch}감지색 {color}{position}")
         for label,rule in zip(TYPE_LABELS,self.rules):
             self.show(f"{label} → {rule['zone_id']}")
 
