@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import cv2
 import yaml
 import rclpy
@@ -68,8 +69,17 @@ def main():
         with tempfile.TemporaryDirectory() as directory:
             state,profile = Path(directory)/'teach.local.yaml',Path(directory)/'live.local.yaml'
             def invoke(stage,*options,expected=0):
-                result = subprocess.run([sys.executable,'-m','ai_worker_sorting.configure_auto',stage,
-                    '--state',str(state),*options],capture_output=True,text=True,timeout=20)
+                # Match the menu's read-only cold-start scan retry. Each attempt
+                # must still pass the unchanged observation freshness checks.
+                attempts = 3 if stage=='scan' and expected==0 else 1
+                for attempt in range(attempts):
+                    result = subprocess.run([sys.executable,'-m','ai_worker_sorting.configure_auto',stage,
+                        '--state',str(state),*options],capture_output=True,text=True,timeout=20)
+                    if (result.returncode==expected or state.exists() or
+                            'Observation/TF is stale' not in result.stderr or attempt==attempts-1):
+                        break
+                    print('Waiting for a fresh read-only calibration scan',file=sys.stderr)
+                    time.sleep(1)
                 assert result.returncode==expected,(result.stdout,result.stderr)
                 return yaml.safe_load(state.read_text())
             data = invoke('scan','--weights',args.weights,'--workspace=-.1,.7,-.4,.4,.05,.8',
